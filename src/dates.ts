@@ -1,7 +1,7 @@
 /**
  * Dates and times from frontmatter. A post can give a date (`2026-10-20`), a
  * date and time (`2026-10-20 14:30` or `2026-10-20T14:30:00`), or either with
- * an offset (`2026-10-20T14:30:00-04:00`, `…Z`). A value without an offset is
+ * an offset (`2026-10-20T14:30:00-04:00`, `2026-10-20T18:30:00Z`). A value without an offset is
  * read in the blog"s time zone, so the same frontmatter means the same moment
  * on every build machine, and is shown in that time zone too.
  */

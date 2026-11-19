@@ -4,6 +4,9 @@ description: A first post about resolvers.
 date: 2026-11-01
 updated: 2026-11-03
 tags: [dns]
+cover: dot.png
+announcement: Hello DNS is out
+authors: [jane]
 ---
 
 Intro paragraph with a [link to the later post](/blog/later/).

@@ -4,18 +4,18 @@ import { imageSize } from "image-size";
 import markdownIt, { type Env, type MarkdownIt, type Token } from "markdown-it";
 import { BUILT_IN_DIRECTIVES, directivesPlugin } from "./directives.js";
 import { plainBlock, type CodeHighlighter } from "./highlight.js";
-import type { Directive, PostSource, TocEntry } from "./types.js";
+import type { BlogDirective, BlogPostSource, BlogTocEntry } from "./types.js";
 import { escapeHtml, isExternalUrl, slugify } from "./util.js";
 
 /** What a render collects, and what it needs from the plugin. */
 export interface RenderEnv extends Env {
-  post: PostSource;
+  post: BlogPostSource;
   /** Lines before the Markdown (the front matter), so reported lines match the file. */
   lineOffset: number;
   error(message: string): void;
   /** The URL a page should use for a local file next to the post. */
   assetUrl(file: string): string;
-  toc: TocEntry[];
+  toc: BlogTocEntry[];
   /** Links to site paths (no scheme, starting with `/`), for checking. */
   links: { href: string; line?: number }[];
   /** Local images this post uses. */
@@ -199,7 +199,7 @@ export function fenceLanguages(md: MarkdownIt, content: string): Set<string> {
 }
 
 export function createMarkdown(options: {
-  directives: Record<string, Directive>;
+  directives: Record<string, BlogDirective>;
   highlighter: CodeHighlighter | null;
   extend?: (md: MarkdownIt) => void;
 }): MarkdownIt {

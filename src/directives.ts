@@ -1,12 +1,12 @@
 import type { MarkdownIt, StateBlock } from "markdown-it";
-import type { Directive } from "./types.js";
+import type { BlogDirective } from "./types.js";
 import { escapeHtml } from "./util.js";
 import { asEnv, type RenderEnv } from "./markdown.js";
 
 const OPENING = /^:::[ \t]*([a-z][\w-]*)(?:[ \t]+(.*?))?[ \t]*$/i;
 const CLOSING = /^:::[ \t]*$/;
 
-function callout(kind: string, label: string): Directive {
+function callout(kind: string, label: string): BlogDirective {
   return {
     kind: "container",
     render: ({ args, body }) =>
@@ -15,7 +15,7 @@ function callout(kind: string, label: string): Directive {
 }
 
 /** `::: note`, `::: tip` and `::: warning`, with an optional title after the name. */
-export const BUILT_IN_DIRECTIVES: Record<string, Directive> = {
+export const BUILT_IN_DIRECTIVES: Record<string, BlogDirective> = {
   note: callout("note", "Note"),
   tip: callout("tip", "Tip"),
   warning: callout("warning", "Warning"),
@@ -30,7 +30,7 @@ function lineText(state: StateBlock, line: number): string {
  * line holding only `:::`, can nest, and their body is parsed as Markdown.
  * An unknown name is reported, not printed as text.
  */
-export function directivesPlugin(md: MarkdownIt, directives: Record<string, Directive>): void {
+export function directivesPlugin(md: MarkdownIt, directives: Record<string, BlogDirective>): void {
   md.block.ruler.before(
     "fence",
     "blog_directive",

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, createServer, type InlineConfig } from "vite";
 import { afterAll, describe, expect, it } from "vitest";
-import { blog, type BlogOptions } from "../src/index.js";
+import { blogPlugin, type BlogOptions } from "../src/index.js";
 
 const root = fileURLToPath(new URL("./fixtures/site", import.meta.url));
 const outDirs: string[] = [];
@@ -21,7 +21,7 @@ function config(options: Partial<BlogOptions> = {}): InlineConfig & { outDir: st
     logLevel: "silent",
     configFile: false,
     plugins: [
-      blog({
+      blogPlugin({
         dir: "content",
         template: "templates/post.html",
         site: "https://example.com",
@@ -68,8 +68,11 @@ describe("build", () => {
     expect(html).toContain('<p class="callout-title">Good to know</p>');
     expect(html).toContain('<nav class="toc" aria-label="On this page">');
 
-    const css = readdirSync(path.join(outDir, "assets")).find((file) => file.endsWith(".css"));
-    expect(read(outDir, `assets/${css}`)).toMatch(/\.sk-[\w-]+\{?/);
+    const css = readdirSync(path.join(outDir, "assets"))
+      .filter((file) => file.endsWith(".css"))
+      .map((file) => read(outDir, `assets/${file}`))
+      .join("\n");
+    expect(css).toMatch(/\.sk-[\w-]+\{?/);
   });
 
   it("writes the index and a page per used tag, listing published posts newest first", async () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Bumps the version, tags, and pushes. Pushing the tag triggers
 // .github/workflows/release.yml, which tests, builds, publishes to npm,
-// and creates the GitHub release — this script only handles the local half.
+// and creates the GitHub release. This script only handles the local half.
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -36,12 +36,12 @@ function computeNextVersion(currentVersion, type) {
 
 const branch = runCapture("git rev-parse --abbrev-ref HEAD");
 if (branch !== "main") {
-  console.error(`Refusing to release from branch "${branch}" — switch to main first.`);
+  console.error(`Refusing to release from branch "${branch}". Switch to main first.`);
   process.exit(1);
 }
 
 if (runCapture("git status --porcelain")) {
-  console.error("Working tree is not clean — commit or stash your changes first.");
+  console.error("Working tree is not clean. Commit or stash your changes first.");
   process.exit(1);
 }
 
@@ -49,7 +49,7 @@ run("git fetch origin main");
 const local = runCapture("git rev-parse HEAD");
 const remote = runCapture("git rev-parse origin/main");
 if (local !== remote) {
-  console.error("Local main is not in sync with origin/main — pull or push first.");
+  console.error("Local main is not in sync with origin/main. Pull or push first.");
   process.exit(1);
 }
 
@@ -81,12 +81,12 @@ if (unreleasedBody) {
     run("git add CHANGELOG.md");
     run(`git commit -m "docs: changelog for v${nextVersion}"`);
   }
-  // else: a prerelease/explicit-version bump — leave CHANGELOG.md as written under [Unreleased].
+  // Otherwise a prerelease or explicit-version bump: leave CHANGELOG.md as written under [Unreleased].
 } else if (!versionAlreadyDocumented) {
   console.error(
     nextVersion
-      ? `CHANGELOG.md has no entries under [Unreleased] and no [${nextVersion}] section — add release notes first.`
-      : "CHANGELOG.md has no entries under [Unreleased] — add release notes first.",
+      ? `CHANGELOG.md has no entries under [Unreleased] and no [${nextVersion}] section. Add release notes first.`
+      : "CHANGELOG.md has no entries under [Unreleased]. Add release notes first.",
   );
   process.exit(1);
 }
@@ -101,5 +101,5 @@ run(`npm version ${bumpType}`);
 run("git push --follow-tags");
 
 console.log(
-  "\nPushed — the release workflow will now test, build, publish to npm, and create the GitHub release.",
+  "\nPushed. The release workflow will now test, build, publish to npm and create the GitHub release.",
 );

@@ -1,16 +1,21 @@
-export { blog, blog as default } from "./plugin.js";
+export { blogPlugin } from "./plugin.js";
 export { BUILT_IN_DIRECTIVES } from "./directives.js";
+export { DEFAULT_LABELS } from "./content.js";
 export { escapeHtml, slugify } from "./util.js";
 export type {
-  AuthorInfo,
+  BlogAnnouncement,
+  BlogAnnouncementOptions,
+  BlogAuthor,
+  BlogDirective,
+  BlogDirectiveContext,
+  BlogFeedOptions,
   BlogIssue,
+  BlogLabels,
+  BlogListPage,
   BlogOptions,
-  Directive,
-  DirectiveContext,
-  ListPage,
-  Post,
-  PostSource,
-  RenderHelpers,
-  TagInfo,
-  TocEntry,
+  BlogPost,
+  BlogPostSource,
+  BlogRenderHelpers,
+  BlogTag,
+  BlogTocEntry,
 } from "./types.js";

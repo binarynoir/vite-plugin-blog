@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createLoader, resolveOptions } from "../src/content.js";
-import type { BlogOptions, Directive } from "../src/index.js";
+import type { BlogOptions, BlogDirective } from "../src/index.js";
 import { countWords } from "../src/markdown.js";
+import { listPages } from "../src/pages.js";
 
 let dir: string;
 
@@ -92,12 +93,12 @@ describe("checks", () => {
     });
     const { issues } = await load();
     expect(issues.map((issue) => issue.message)).toEqual([
-      'line 8: link to /blog/tag/email/ goes nowhere: no published post has the tag "email"',
+      'line 8: link to /blog/tag/email/ goes nowhere: no listed post has the tag "email"',
       "line 8: link to /blog/a/b/ goes nowhere",
     ]);
     const off = await load({ tagPages: false });
     expect(off.issues.map((issue) => issue.message)).toContain(
-      'line 8: link to /blog/tag/dns/ goes nowhere: no published post has the tag "dns"',
+      'line 8: link to /blog/tag/dns/ goes nowhere: no listed post has the tag "dns"',
     );
   });
 
@@ -124,6 +125,40 @@ describe("checks", () => {
   });
 });
 
+describe("front matter", () => {
+  it("puts pinned posts first in lists, newest first within each group", async () => {
+    site({
+      old: post("Hi.", "pinned: true\n"),
+      new: post("Hi.").replace("2026-11-01", "2026-11-10"),
+      mid: post("Hi.").replace("2026-11-01", "2026-11-05"),
+    });
+    const options = resolveOptions(
+      { dir, template: "post.html", highlight: false, now: new Date("2026-11-19") },
+      { root: dir, base: "/" },
+    );
+    const content = await createLoader(options, (file) => file)();
+    expect(listPages(options, content)[0]!.posts.map((p) => p.slug)).toEqual(["old", "new", "mid"]);
+  });
+
+  it("reads announcement as true, text, or { text, until }, and reports a bad one", async () => {
+    site({
+      a: post("Hi.", "announcement: true\n"),
+      b: post("Hi.", "announcement: Read this\n"),
+      c: post("Hi.", "announcement:\n  text: Until Friday\n  until: 2026-11-20\n"),
+      d: post("Hi.", "announcement:\n  until: someday\n"),
+    });
+    const { posts, issues } = await load();
+    const bySlug = Object.fromEntries(posts.map((p) => [p.slug, p.announcement]));
+    expect(bySlug.a).toEqual({ text: "A post" });
+    expect(bySlug.b).toEqual({ text: "Read this" });
+    // A date alone lasts to the end of that day.
+    expect(bySlug.c).toEqual({ text: "Until Friday", until: new Date("2026-11-21T00:00:00Z") });
+    expect(issues.map((issue) => issue.message)).toEqual([
+      'announcement until "someday" isn\'t a date',
+    ]);
+  });
+});
+
 describe("markdown", () => {
   it("gives headings unique ids, and lists ## and ### in the table of contents", async () => {
     site({ a: post("## Set up DNS\n\n### Step `one`\n\n## Set up DNS\n\n#### Deep") });
@@ -137,7 +172,7 @@ describe("markdown", () => {
   });
 
   it("renders leaf and container directives, and reports unknown ones", async () => {
-    const tool: Directive = {
+    const tool: BlogDirective = {
       kind: "leaf",
       render: ({ args, error }) => {
         if (!args) error("needs a tool name");

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { MarkdownIt } from "markdown-it";
@@ -5,7 +6,17 @@ import { parse } from "yaml";
 import { parsePostDate, resolveTimeZone } from "./dates.js";
 import { createCodeHighlighter, type CodeHighlighter } from "./highlight.js";
 import { countWords, createMarkdown, fenceLanguages, type RenderEnv } from "./markdown.js";
-import type { AuthorInfo, BlogIssue, BlogOptions, Post, PostSource, TagInfo } from "./types.js";
+import { checkLinks } from "./pages.js";
+import type {
+  BlogAnnouncement,
+  BlogAuthor,
+  BlogIssue,
+  BlogLabels,
+  BlogOptions,
+  BlogPost,
+  BlogPostSource,
+  BlogTag,
+} from "./types.js";
 import { joinUrl, normalizeBase, readFrontmatter, toRecord, toStringList, toText } from "./util.js";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -22,15 +33,53 @@ export interface ResolvedBlogOptions extends BlogOptions {
   locale: string;
   wordsPerMinute: number;
   titleSuffix: string;
+  labels: BlogLabels;
+  pageSize: number;
+}
+
+export const DEFAULT_LABELS: BlogLabels = {
+  readingTime: "{n} min read",
+  updated: "Updated",
+  by: "By",
+  onThisPage: "On this page",
+  newer: "Newer post",
+  older: "Older post",
+  blog: "Blog",
+  tags: "Tags",
+  noPosts: "No posts yet.",
+  previous: "Previous",
+  next: "Next",
+  pageOf: "Page {n} of {count}",
+  announcement: "Announcement",
+  announcements: "Announcements",
+  announcementCount: "{n} announcements",
+  dismiss: "Dismiss",
+};
+
+/** A local file the build copies to a fixed address, for absolute URLs in social cards and feeds. */
+export interface BlogAssetCopy {
+  file: string;
+  /** Relative to the output folder: `blog/images/cover-1a2b3c4d.png`. */
+  fileName: string;
 }
 
 export interface BlogContent {
-  /** What the build publishes, newest first: everything, with `preview`. */
-  posts: Post[];
+  /** Every post the build writes, newest first: drafts and scheduled ones too, with `preview`. */
+  posts: BlogPost[];
+  /** Posts in lists, feeds and the sitemap: `posts` without unlisted ones. */
+  listed: BlogPost[];
+  /** Posts in the announcement banner, newest first. */
+  announcements: BlogPost[];
+  /** Files to copy, such as covers for social cards. */
+  copies: BlogAssetCopy[];
+  /** Links from each post to paths on the site, checked once every page is known. */
+  links: Map<BlogPost, { href: string; line?: number }[]>;
+  /** Posts left out of this build, by slug, so a link to one can say why. */
+  hidden: Map<string, "draft" | "scheduled">;
   issues: BlogIssue[];
   /** CSS for the code highlighting classes used. */
   css: string;
-  tags: Record<string, TagInfo>;
+  tags: Record<string, BlogTag>;
   /** Every file read, so dev can reload when one changes. */
   files: string[];
 }
@@ -49,6 +98,8 @@ export function resolveOptions(
     locale: options.locale ?? "en-US",
     wordsPerMinute: options.wordsPerMinute ?? 230,
     titleSuffix: options.titleSuffix ?? "",
+    labels: { ...DEFAULT_LABELS, ...options.labels },
+    pageSize: Math.max(0, Math.floor(options.pageSize ?? 0)),
   };
 }
 
@@ -73,7 +124,7 @@ function readTags(options: ResolvedBlogOptions, issues: BlogIssue[], files: stri
   files.push(file);
   const data = readYamlFile(file, issues);
   if (!data) return null;
-  const tags: Record<string, TagInfo> = {};
+  const tags: Record<string, BlogTag> = {};
   for (const [id, value] of Object.entries(data)) {
     const record = toRecord(value);
     tags[id] = {
@@ -90,10 +141,14 @@ function readAuthors(options: ResolvedBlogOptions, issues: BlogIssue[], files: s
   files.push(file);
   const data = readYamlFile(file, issues);
   if (!data) return null;
-  const authors: Record<string, AuthorInfo> = {};
+  const authors: Record<string, BlogAuthor> = {};
   for (const [id, value] of Object.entries(data)) {
     const record = toRecord(value);
-    authors[id] = { name: toText(record.name) || id, url: toText(record.url) || undefined };
+    authors[id] = {
+      name: toText(record.name) || id,
+      url: toText(record.url) || undefined,
+      email: toText(record.email) || undefined,
+    };
   }
   return authors;
 }
@@ -133,6 +188,40 @@ export function findPosts(dir: string, issues: BlogIssue[]): { slug: string; fil
     found.set(slug, file);
   }
   return [...found].map(([slug, file]) => ({ slug, file }));
+}
+
+/**
+ * Reads `announcement`: `true` (the banner shows the title), a string (the
+ * banner's text), or `{ text, until }`, where `until` ends it.
+ */
+function readAnnouncement(
+  value: unknown,
+  title: string,
+  timeZone: string,
+  report: (message: string) => void,
+): BlogAnnouncement | undefined {
+  if (value === undefined || value === false) return undefined;
+  if (value === true) return { text: title };
+  if (typeof value === "string") return value.trim() ? { text: value.trim() } : undefined;
+  const record = toRecord(value);
+  if (!Object.keys(record).length) {
+    report("announcement must be true, the banner's text, or { text, until }");
+    return undefined;
+  }
+  const announcement: BlogAnnouncement = { text: toText(record.text) || title };
+  if (record.until !== undefined) {
+    const until = parsePostDate(record.until, timeZone);
+    if (!until) report(`announcement until "${String(record.until)}" isn't a date`);
+    // A date alone means the end of that day.
+    else
+      announcement.until = until.hasTime ? until.date : new Date(until.date.getTime() + 86_400_000);
+  }
+  return announcement;
+}
+
+/** A content hash for a copied file's name, so its address changes when the file does. */
+function shortHash(file: string): string {
+  return createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8);
 }
 
 /** Loads, renders and checks the blog. Keeps the highlighter between loads. */
@@ -175,7 +264,7 @@ export function createLoader(
       ...options.limits,
     };
 
-    const sources: PostSource[] = [];
+    const sources: BlogPostSource[] = [];
     for (const { slug, file } of findPosts(options.dir, issues)) {
       files.push(file);
       try {
@@ -189,7 +278,7 @@ export function createLoader(
     // Read the front matter of every post first, so links to drafts and
     // scheduled posts can be told apart from links to nothing.
     const drafts = new Map<string, "draft" | "scheduled">();
-    const included: PostSource[] = [];
+    const included: BlogPostSource[] = [];
     for (const source of sources) {
       const date = parsePostDate(source.data.date, options.timeZone);
       const draft = source.data.draft === true;
@@ -211,8 +300,9 @@ export function createLoader(
       }
     }
 
-    const posts: Post[] = [];
-    const linksByPost = new Map<Post, RenderEnv["links"]>();
+    const posts: BlogPost[] = [];
+    const linksByPost = new Map<BlogPost, RenderEnv["links"]>();
+    const copies: BlogAssetCopy[] = [];
     for (const source of included) {
       const problems: string[] = [];
       const report = (message: string) => problems.push(message);
@@ -252,22 +342,34 @@ export function createLoader(
           if (!Object.hasOwn(tags, tag)) report(`tag "${tag}" isn't in tags.yml`);
       }
 
-      const authorIds = toStringList(data.authors ?? data.author);
-      const postAuthors: AuthorInfo[] = [];
+      const named = toStringList(data.authors ?? data.author);
+      const authorIds = named.length || !options.defaultAuthor ? named : [options.defaultAuthor];
+      const postAuthors: BlogAuthor[] = [];
       for (const id of authorIds) {
         if (authors && !Object.hasOwn(authors, id)) report(`author "${id}" isn't in authors.yml`);
         else postAuthors.push(authors?.[id] ?? { name: id });
       }
 
+      // A local cover is referenced two ways: through Vite on the post's own page,
+      // and as a copy at a fixed address for social cards and feeds, which need
+      // an absolute URL before Vite has named the bundled file.
       let cover: string | undefined;
+      let coverUrl: string | undefined;
       const coverValue = toText(data.cover);
       if (coverValue) {
         const coverFile = path.resolve(path.dirname(file), coverValue);
-        if (/^[a-z]+:|^\//i.test(coverValue)) cover = coverValue;
-        else if (!existsSync(coverFile)) report(`cover "${coverValue}" doesn't exist`);
+        if (/^[a-z]+:/i.test(coverValue)) cover = coverUrl = coverValue;
+        else if (coverValue.startsWith("/")) {
+          cover = coverValue;
+          if (options.site) coverUrl = joinUrl(options.site, joinUrl(options.siteBase, coverValue));
+        } else if (!existsSync(coverFile)) report(`cover "${coverValue}" doesn't exist`);
         else {
           cover = assetUrl(coverFile, slug);
           files.push(coverFile);
+          const extension = path.extname(coverFile);
+          const fileName = `${options.base.slice(1)}images/${path.basename(coverFile, extension)}-${shortHash(coverFile)}${extension}`;
+          copies.push({ file: coverFile, fileName });
+          if (options.site) coverUrl = joinUrl(options.site, joinUrl(options.siteBase, fileName));
         }
       }
 
@@ -293,7 +395,7 @@ export function createLoader(
 
       const words = countWords(source.content);
       const sitePath = postPath(options, slug);
-      const post: Post = {
+      const post: BlogPost = {
         slug,
         url: joinUrl(options.siteBase, sitePath),
         canonical: options.site
@@ -309,12 +411,17 @@ export function createLoader(
         authors: postAuthors,
         draft: data.draft === true,
         scheduled: !!date && date.date > now,
+        unlisted: data.unlisted === true,
+        pinned: data.pinned === true,
         featured: data.featured === true,
         series: toText(data.series) || undefined,
         cover,
+        coverUrl,
+        announcement: readAnnouncement(data.announcement, title, options.timeZone, report),
         data,
         html,
         toc: env.toc,
+        images: [...new Set(env.images)],
         readingMinutes: Math.max(1, Math.ceil(words / options.wordsPerMinute)),
         words,
       };
@@ -324,51 +431,24 @@ export function createLoader(
       posts.push(post);
     }
 
-    // Links between posts, and to site pages when the site says which exist.
-    const published = new Set(posts.map((post) => post.slug));
-    const usedTags = new Set(posts.flatMap((post) => post.tags));
-    for (const [post, links] of linksByPost) {
-      for (const { href, line } of links) {
-        const where = line ? `line ${line}: ` : "";
-        const pathname = href.split(/[?#]/)[0]!;
-        if (pathname.startsWith(options.base)) {
-          const rest = pathname.slice(options.base.length).replace(/(?:\/index\.html|\/)$/, "");
-          if (!rest) continue; // the index
-          const tag = /^tag\/([^/]+)$/.exec(rest)?.[1];
-          if (tag) {
-            if (options.tagPages !== false && usedTags.has(tag)) continue;
-            issues.push({
-              file: post.file,
-              message: `${where}link to ${href} goes nowhere: no published post has the tag "${tag}"`,
-            });
-            continue;
-          }
-          if (rest.includes("/")) {
-            issues.push({ file: post.file, message: `${where}link to ${href} goes nowhere` });
-            continue;
-          }
-          if (published.has(rest)) continue;
-          const state = drafts.get(rest);
-          issues.push({
-            file: post.file,
-            message: state
-              ? `${where}link to ${href} goes to a ${state} post, which isn't published yet`
-              : `${where}link to ${href} goes nowhere: there's no post "${rest}"`,
-          });
-        } else if (options.isKnownPath && !options.isKnownPath(pathname)) {
-          issues.push({ file: post.file, message: `${where}link to ${href} goes nowhere` });
-        }
-      }
-    }
-
     posts.sort((a, b) => b.date.getTime() - a.date.getTime() || a.slug.localeCompare(b.slug));
-    return {
+    const listed = posts.filter((post) => !post.unlisted);
+    const content: BlogContent = {
       posts,
+      listed,
+      announcements: listed.filter(
+        (post) => post.announcement && (!post.announcement.until || post.announcement.until > now),
+      ),
+      copies,
+      links: linksByPost,
+      hidden: drafts,
       issues,
       css: highlighter?.css() ?? "",
       tags: tags ?? {},
       files: [...new Set(files)],
     };
+    checkLinks(options, content);
+    return content;
   };
 }
 

@@ -13,13 +13,15 @@ declare module "virtual:blog/posts" {
     updated?: string;
     tags: string[];
     authors: { name: string; url?: string }[];
+    /** Kept at the top of lists. */
+    pinned: boolean;
     featured: boolean;
     series?: string;
     readingMinutes: number;
     /** Front matter as written, including fields the plugin doesn't know. */
     data: Record<string, unknown>;
   }
-  /** Published posts, newest first. */
+  /** Listed posts (published, not unlisted), newest first. */
   export const posts: BlogPostSummary[];
   export default posts;
 }
