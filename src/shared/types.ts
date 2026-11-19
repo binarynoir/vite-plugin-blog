@@ -47,7 +47,7 @@ export interface BlogLabels {
   date: string;
   /** The date menu's first choice, which clears it: "Any time". */
   anyTime: string;
-  /** The feed icon's accessible name: "{name} feed". */
+  /** A feed's name: "{name} feed". (The browse bar's icon now says `subscribe`.) */
   feed: string;
   /** A tag page's description when `tags.yml` gives none: "Posts about {tag}." */
   tagDescription: string;
@@ -68,8 +68,27 @@ export interface BlogLabels {
   copied: string;
   /** A code block's copy button. */
   copyCode: string;
-  /** Before the feed links. */
+  /** Before the feed links, and the end-of-list subscribe link. */
   subscribe: string;
+  /** The subscribe dialog's heading: "Subscribe to {blog}". */
+  subscribeTo: string;
+  /** Under it: "Copy this address into your feed reader app." */
+  subscribeHint: string;
+  /** The format choice's accessible name. */
+  feedFormat: string;
+  /** The address field's accessible name. */
+  feedAddress: string;
+  /** One line on each format, under the address. */
+  feedRss: string;
+  feedAtom: string;
+  feedJson: string;
+  /** The copy button. */
+  copy: string;
+  openInReader: string;
+  viewFeed: string;
+  aboutFeeds: string;
+  /** The dialog's close button. */
+  close: string;
   /** The search field's label and placeholder. */
   search: string;
   /** The placeholder on a tag page: "Search {tag} posts". */
@@ -152,6 +171,19 @@ export interface BlogSearchIndex {
   posts: BlogSearchPost[];
 }
 
+export type BlogFeedKind = "rss" | "atom" | "json";
+
+/** A feed the build writes. */
+export interface BlogFeedLink {
+  kind: BlogFeedKind;
+  /** The site path: `/blog/feed.xml`. */
+  url: string;
+  /** Its media type: `application/rss+xml`. */
+  type: string;
+  /** "RSS", "Atom" or "JSON Feed". */
+  name: string;
+}
+
 /** A tab in the browse bar: a topic, or every post. */
 export interface BlogBrowseTopic {
   /** The tag id; absent for "All". */
@@ -214,6 +246,10 @@ export interface BlogClientConfig {
   pageSize: number;
   /** The browse bar, on list pages. */
   browse?: BlogBrowse;
+  /** The feeds, for the subscribe dialog. */
+  feeds?: BlogFeedLink[];
+  /** The feeds' title, for "Subscribe to {blog}". */
+  feedTitle?: string;
   labels: BlogLabels;
 }
 
@@ -225,6 +261,8 @@ export interface BlogSiteInfo {
   description: string;
   /** Feed paths that this build writes. */
   feeds: { rss?: string; atom?: string; json?: string };
+  /** The feeds' title, for the subscribe dialog: "Subscribe to {feedTitle}". */
+  feedTitle: string;
   searchUrl?: string;
   labels: BlogLabels;
 }

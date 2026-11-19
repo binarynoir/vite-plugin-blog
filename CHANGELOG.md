@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Subscribe dialog.** A click on a link to one of the feeds opens a dialog where readers pick RSS, Atom or JSON Feed (with a line on each, and the choice remembered), copy the address, open it in a feed reader app, view the feed, or read "What is a feed?". It closes on Esc, the close button or a click outside, and returns focus. `enhanceBlogPage()` turns it on (`subscribe: false` to opt out); `enhanceFeedLinks()`, `openSubscribeDialog()`, `renderSubscribeDialog()`, `feedLinks()` and `findFeed()` in `/runtime` use it anywhere on a site.
+- `@binarynoir/vite-plugin-blog/subscribe.css`, the dialog's styles alone, for pages outside the blog. `styles.css` includes it.
+- `feeds` and `feedTitle` in the client config, `feedTitle` in `virtual:blog/*`'s `blog`, and labels for the dialog.
+
+### Changed
+
+- The end of a list shows one "Subscribe" link with the formats beside it ("RSS, Atom, or JSON Feed"), instead of a link per format. It opens the dialog, or the first feed without a script.
+- The browse bar's feed icon is labeled "Subscribe", since it opens the dialog.
+
 ## [0.5.0] - 2026-11-19
 
 ### Added

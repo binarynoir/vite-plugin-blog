@@ -106,7 +106,7 @@ describe("Vue components", () => {
       /<a class="blog-browse-tab" href="\/blog\/tag\/dns\/" aria-current="page"/,
     );
     expect(html).toContain('<details class="blog-menu" data-blog-control="date-menu">');
-    expect(html).toContain('aria-label="RSS feed"');
+    expect(html).toContain('aria-label="Subscribe"');
     // Off, the explorer leaves the bar out, for list pages the build didn't give one.
     const off = await render(BlogExplorer, { config, browse: false, resultsSelector: "#none" });
     expect(off).not.toContain("blog-browse");

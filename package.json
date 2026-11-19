@@ -49,6 +49,7 @@
       "import": "./dist/vue.js"
     },
     "./styles.css": "./styles.css",
+    "./subscribe.css": "./subscribe.css",
     "./client": {
       "types": "./client.d.ts"
     },
@@ -57,7 +58,8 @@
   "files": [
     "dist",
     "client.d.ts",
-    "styles.css"
+    "styles.css",
+    "subscribe.css"
   ],
   "publishConfig": {
     "access": "public"

@@ -239,7 +239,7 @@ describe("shared markup", () => {
     // Months without posts show, greyed out, so the grid stays a calendar.
     expect(html).toContain('<span class="blog-menu-choice is-empty" aria-hidden="true">Jan</span>');
     expect(html).toContain(
-      '<a class="blog-browse-feed" href="/blog/feed.xml" type="application/rss+xml" title="RSS feed" aria-label="RSS feed">',
+      '<a class="blog-browse-feed" href="/blog/feed.xml" type="application/rss+xml" title="Subscribe" aria-label="Subscribe">',
     );
   });
 

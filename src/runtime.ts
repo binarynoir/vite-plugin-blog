@@ -6,6 +6,7 @@
  */
 import type { BlogClientConfig, BlogSearchIndex } from "./shared/types.js";
 import { DEFAULT_LABELS } from "./shared/labels.js";
+import { enhanceFeedLinks } from "./subscribe.js";
 
 export { DEFAULT_LABELS } from "./shared/labels.js";
 export { escapeHtml, fillLabel } from "./shared/html.js";
@@ -44,6 +45,15 @@ export {
 } from "./shared/markup.js";
 export { el, toHtml, type BlogElement, type BlogNode } from "./shared/tree.js";
 export type * from "./shared/types.js";
+
+export {
+  enhanceFeedLinks,
+  feedLinks,
+  findFeed,
+  openSubscribeDialog,
+  renderSubscribeDialog,
+  type BlogSubscribeOptions,
+} from "./subscribe.js";
 
 export const CONFIG_ELEMENT_ID = "blog-config";
 
@@ -84,6 +94,8 @@ export interface EnhanceOptions {
   tocHighlight?: boolean;
   /** How long "Copied" shows, in milliseconds. Default 1600. */
   copiedFor?: number;
+  /** Open the subscribe dialog from links to the feeds. Default `true`. */
+  subscribe?: boolean;
 }
 
 function copyButton(
@@ -108,14 +120,22 @@ function copyButton(
 
 /**
  * Progressive extras for a post page. The article reads without them.
- * Returns a function that undoes the table of contents observer.
+ * Returns a function that undoes the table of contents observer and the feed links.
  */
 export function enhanceBlogPage(
   options: EnhanceOptions = {},
   doc: Document = document,
 ): () => void {
-  const labels = readBlogConfig(doc)?.labels ?? DEFAULT_LABELS;
+  const config = readBlogConfig(doc);
+  const labels = config?.labels ?? DEFAULT_LABELS;
   const wait = options.copiedFor ?? 1600;
+  const stopFeeds =
+    options.subscribe !== false && config?.feeds?.length
+      ? enhanceFeedLinks(
+          { feeds: config.feeds, title: config.feedTitle ?? labels.blog, labels, copiedFor: wait },
+          doc,
+        )
+      : () => {};
 
   if (options.copyCode !== false) {
     for (const block of doc.querySelectorAll<HTMLElement>(".code-block")) {
@@ -143,7 +163,7 @@ export function enhanceBlogPage(
     }
   }
 
-  let stop = () => {};
+  let stop = stopFeeds;
   const links = [...doc.querySelectorAll<HTMLAnchorElement>(".blog-toc a[href^='#']")];
   if (
     options.tocHighlight !== false &&
@@ -182,7 +202,10 @@ export function enhanceBlogPage(
       { rootMargin: "0px 0px -60% 0px" },
     );
     for (const heading of headings) observer.observe(heading);
-    stop = () => observer.disconnect();
+    stop = () => {
+      observer.disconnect();
+      stopFeeds();
+    };
   }
   return stop;
 }

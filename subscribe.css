@@ -1,0 +1,222 @@
+/*
+ * @binarynoir/vite-plugin-blog/subscribe.css
+ *
+ * The subscribe dialog (`openSubscribeDialog`, `enhanceFeedLinks`). styles.css
+ * includes it; import it alone on pages outside the blog. Themed with the same
+ * --blog-* custom properties, with fallbacks so it works without styles.css.
+ * Zero specificity, like styles.css.
+ */
+
+:where(.blog-subscribe) {
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--blog-border, color-mix(in srgb, CanvasText 14%, Canvas));
+  border-radius: var(--blog-radius, 16px);
+  background: var(--blog-surface, Canvas);
+  color: var(--blog-text, CanvasText);
+  box-shadow: 0 24px 60px -24px var(--blog-shadow, color-mix(in srgb, CanvasText 30%, transparent));
+  font: inherit;
+}
+:where(.blog-subscribe)::backdrop {
+  background: color-mix(in srgb, #000 45%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :where(.blog-subscribe[open]) {
+    animation: blog-subscribe-in 0.18s ease-out;
+  }
+  :where(.blog-subscribe[open])::backdrop {
+    animation: blog-subscribe-fade 0.18s ease-out;
+  }
+}
+@keyframes blog-subscribe-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes blog-subscribe-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+:where(.blog-subscribe .blog-visually-hidden) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:where(.blog-subscribe-close) {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--blog-muted, color-mix(in srgb, CanvasText 64%, Canvas));
+  cursor: pointer;
+}
+:where(.blog-subscribe-close:hover) {
+  background: var(--blog-muted-bg, color-mix(in srgb, CanvasText 5%, Canvas));
+  color: var(--blog-text, CanvasText);
+}
+
+:where(.blog-subscribe-title) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 40px 6px 0;
+  font-family: var(--blog-font-display, inherit);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+:where(.blog-subscribe-icon) {
+  flex: none;
+  color: var(--blog-accent, LinkText);
+}
+:where(.blog-subscribe-hint) {
+  margin: 0 0 18px;
+  color: var(--blog-muted, color-mix(in srgb, CanvasText 64%, Canvas));
+  font-size: 15px;
+}
+
+/* The format choice: a segmented control over a radio group. */
+:where(.blog-subscribe-formats) {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 3px;
+  border: 1px solid var(--blog-border, color-mix(in srgb, CanvasText 14%, Canvas));
+  border-radius: 999px;
+  background: var(--blog-muted-bg, color-mix(in srgb, CanvasText 5%, Canvas));
+}
+:where(.blog-subscribe-format) {
+  position: relative;
+  cursor: pointer;
+}
+:where(.blog-subscribe-format input) {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+:where(.blog-subscribe-format span) {
+  display: block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  color: var(--blog-muted, color-mix(in srgb, CanvasText 64%, Canvas));
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+:where(.blog-subscribe-format:hover span) {
+  color: var(--blog-text, CanvasText);
+}
+:where(.blog-subscribe-format input:checked + span) {
+  background: var(--blog-surface, Canvas);
+  color: var(--blog-text, CanvasText);
+  box-shadow: 0 1px 3px -1px var(--blog-shadow, color-mix(in srgb, CanvasText 30%, transparent));
+}
+:where(.blog-subscribe-format input:focus-visible + span) {
+  outline: 2px solid var(--blog-focus, LinkText);
+  outline-offset: 1px;
+}
+
+:where(.blog-subscribe-field) {
+  display: flex;
+  gap: 8px;
+}
+:where(.blog-subscribe-address) {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--blog-border, color-mix(in srgb, CanvasText 14%, Canvas));
+  border-radius: var(--blog-radius-small, 10px);
+  background: var(--blog-muted-bg, color-mix(in srgb, CanvasText 5%, Canvas));
+  color: var(--blog-text, CanvasText);
+  font-family: var(--blog-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 14px;
+  text-overflow: ellipsis;
+}
+:where(.blog-subscribe-address:focus) {
+  outline: none;
+  border-color: var(--blog-focus, LinkText);
+  box-shadow: 0 0 0 3px var(--blog-accent-tint, color-mix(in srgb, LinkText 12%, Canvas));
+}
+:where(.blog-subscribe-copy) {
+  flex: none;
+  min-width: 84px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--blog-radius-small, 10px);
+  background: var(--blog-text, CanvasText);
+  color: var(--blog-surface, Canvas);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+:where(.blog-subscribe-copy[data-copied]) {
+  background: var(--blog-accent-tint, color-mix(in srgb, LinkText 12%, Canvas));
+  color: var(--blog-accent-tint-text, LinkText);
+}
+
+:where(.blog-subscribe-note) {
+  min-height: 1.5em;
+  margin: 8px 0 18px;
+  color: var(--blog-muted, color-mix(in srgb, CanvasText 64%, Canvas));
+  font-size: 13px;
+}
+
+:where(.blog-subscribe-links) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--blog-border, color-mix(in srgb, CanvasText 14%, Canvas));
+  font-size: 14px;
+  font-weight: 600;
+}
+:where(.blog-subscribe-links a) {
+  color: var(--blog-accent, LinkText);
+  text-decoration: none;
+}
+:where(.blog-subscribe-links a:hover) {
+  text-decoration: underline;
+}
+:where(.blog-subscribe-about) {
+  margin-left: auto;
+  color: var(--blog-muted, color-mix(in srgb, CanvasText 64%, Canvas));
+}
+
+@media (max-width: 560px) {
+  :where(.blog-subscribe) {
+    padding: 20px;
+  }
+  :where(.blog-subscribe-field) {
+    flex-direction: column;
+  }
+  :where(.blog-subscribe-about) {
+    margin-left: 0;
+  }
+}

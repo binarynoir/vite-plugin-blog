@@ -117,7 +117,11 @@ describe("list pages", () => {
     expect(index).toMatch(
       /<article class="blog-card is-featured">[\s\S]*?<p class="blog-card-label">Latest<\/p>/,
     );
-    expect(index).toContain('<p class="blog-feeds"><span>Subscribe</span>');
+    // One subscribe link at the end, to the first feed, naming the formats the dialog offers.
+    expect(index).toContain(
+      '<p class="blog-feeds"><a class="blog-feeds-link" href="/blog/feed.xml" type="application/rss+xml">',
+    );
+    expect(index).toContain('<span class="blog-feeds-formats">RSS, Atom, or JSON Feed</span>');
 
     const tag = read("blog/tag/dns/index.html");
     const config = JSON.parse(
@@ -129,6 +133,19 @@ describe("list pages", () => {
       tag: "dns",
       tagName: "DNS",
     });
+    // Every feed, for the subscribe dialog's format choice.
+    expect(config.feeds.map((feed: { kind: string }) => feed.kind)).toEqual([
+      "rss",
+      "atom",
+      "json",
+    ]);
+    expect(config.feeds[0]).toEqual({
+      kind: "rss",
+      url: "/blog/feed.xml",
+      type: "application/rss+xml",
+      name: "RSS",
+    });
+    expect(typeof config.feedTitle).toBe("string");
     expect(tag).toContain('placeholder="Search DNS posts"');
   });
 

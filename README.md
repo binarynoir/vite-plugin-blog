@@ -31,6 +31,7 @@ scripts, styles and `transformIndexHtml` plugins apply to posts like to every ot
   (`?q=dns&date=2026-11&sort=oldest`) and loads the index only when someone starts typing. No
   WebAssembly and no extra build step, so it works under `script-src 'self'`.
 - **Reach:** share links that load nothing from the networks, feed links on every page,
+  a subscribe dialog where readers pick RSS, Atom or JSON Feed and copy or open it,
   related posts, series navigation, and `virtual:blog/latest` for a home page strip.
 - **An announcement banner** across every page of the site for posts marked
   `announcement`, with a count of the others, a close button that remembers, and an
@@ -133,7 +134,7 @@ import "@binarynoir/vite-plugin-blog/styles.css"; // optional: default styles
 import { enhanceBlogPage } from "@binarynoir/vite-plugin-blog/runtime";
 import { mountBlogExplorer } from "@binarynoir/vite-plugin-blog/vue"; // needs vue
 
-enhanceBlogPage(); // copy buttons, "Copy link", contents highlight
+enhanceBlogPage(); // copy buttons, "Copy link", contents highlight, subscribe dialog
 mountBlogExplorer(); // search on the index and tag pages; does nothing elsewhere
 ```
 
@@ -224,6 +225,31 @@ works. Switching topic keeps the search and date. The date menu lists each year 
 posts, newest first, and its twelve months (empty months greyed out); picking one
 filters the list in the browser, from `search.json`, so the menu needs search on and
 shows once the explorer runs. The feed icon links RSS, else Atom, else JSON Feed.
+
+### Subscribing
+
+A click on any link to one of the blog's feeds (the browse bar's icon, the
+"Subscribe" link at the end of a list, or your own) opens a dialog instead of a page
+of raw XML. Readers pick the format (RSS, Atom or JSON Feed, with a line on each),
+copy its address, open it in their feed reader app (`feed:`), view the feed, or follow
+"What is a feed?". The choice is remembered. Esc, the close button or a click outside
+closes it, and focus goes back to the link. A click with a modifier key, or no
+script, opens the feed as before. It's built with DOM calls, so a strict Content
+Security Policy needs no change.
+
+`enhanceBlogPage()` turns it on for blog pages (`subscribe: false` turns it off). For
+the rest of your site, such as a header icon on every page, use the virtual module's
+`blog`:
+
+```ts
+import "@binarynoir/vite-plugin-blog/subscribe.css"; // only the dialog; styles.css includes it
+import { enhanceFeedLinks } from "@binarynoir/vite-plugin-blog/runtime";
+import { blog } from "virtual:blog/latest";
+
+if (blog) enhanceFeedLinks({ feeds: blog.feeds, title: blog.feedTitle, labels: blog.labels });
+```
+
+`openSubscribeDialog(options, format?)` opens it from your own button.
 The breadcrumb's "Blog" always goes to the plain index.
 
 ### Search

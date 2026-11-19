@@ -483,8 +483,9 @@ export function browseTree(options: BlogBrowseOptions): BlogElement {
           class: "blog-browse-feed",
           href: browse.feed.url,
           type: browse.feed.type,
-          title: fillLabel(labels.feed, { name: browse.feed.name }),
-          "aria-label": fillLabel(labels.feed, { name: browse.feed.name }),
+          // It opens the subscribe dialog (where the reader picks a format) once a script runs.
+          title: labels.subscribe,
+          "aria-label": labels.subscribe,
         },
         FEED_ICON,
       )

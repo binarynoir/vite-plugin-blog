@@ -7,6 +7,8 @@
  * Breakpoints: 1000px (contents column), 760px (one card column), 560px (phones).
  */
 
+@import "./subscribe.css";
+
 :where(:root) {
   --blog-text: CanvasText;
   --blog-muted: color-mix(in srgb, CanvasText 64%, Canvas);
@@ -654,18 +656,42 @@
   text-decoration: none;
 }
 
+/* End of a list: one "Subscribe" link (it opens the subscribe dialog), and the formats. */
 :where(.blog-feeds) {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  align-items: center;
+  gap: 4px 12px;
   margin: 40px 0 0;
   padding-top: 20px;
   border-top: 1px solid var(--blog-border);
   color: var(--blog-muted);
   font-size: 14px;
 }
-:where(.blog-feeds a) {
+:where(.blog-feeds-link) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--blog-border);
+  border-radius: 999px;
+  background: var(--blog-surface);
+  color: var(--blog-text);
   font-weight: 600;
+  text-decoration: none;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    color 0.2s;
+}
+:where(.blog-feeds-link:hover) {
+  border-color: var(--blog-accent);
+  background: var(--blog-accent-tint);
+  color: var(--blog-accent-tint-text);
+}
+:where(.blog-feeds-icon) {
+  color: var(--blog-accent);
 }
 :where(.blog-empty) {
   color: var(--blog-muted);

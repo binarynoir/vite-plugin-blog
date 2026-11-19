@@ -47,6 +47,10 @@ const FEED_TYPES = {
 
 const FEED_NAMES = { rss: "RSS", atom: "Atom", json: "JSON Feed" } as const;
 
+/** The feed icon on the end-of-list subscribe link, as on the browse bar. */
+const FEED_ICON =
+  '<svg class="blog-feeds-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5 11a8 8 0 0 1 8 8"/><path d="M5 5a14 14 0 0 1 14 14"/><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg>';
+
 const DEFAULT_SHARE: BlogShareNetwork[] = [
   "linkedin",
   "bluesky",
@@ -435,16 +439,28 @@ export function createHelpers(
       )
       .join("\n    ");
 
+  /** Every feed the build writes, for the subscribe dialog. */
+  const feedList = () =>
+    enabledFeeds(options).map((kind) => ({
+      kind,
+      url: feedPath(kind),
+      type: FEED_TYPES[kind],
+      name: FEED_NAMES[kind],
+    }));
+
+  /**
+   * One "Subscribe" link at the end of a list, to the first feed, with the formats
+   * beside it. A script opens the subscribe dialog from it, where the reader picks
+   * the format; without one, it opens the feed.
+   */
   const renderFeedList = () => {
-    const kinds = enabledFeeds(options);
-    if (!kinds.length) return "";
-    const links = kinds
-      .map(
-        (kind) =>
-          `<a href="${escapeHtml(feedPath(kind))}" type="${FEED_TYPES[kind]}">${FEED_NAMES[kind]}</a>`,
-      )
-      .join(" ");
-    return `<p class="blog-feeds"><span>${escapeHtml(labels.subscribe)}</span> ${links}</p>`;
+    const feeds = feedList();
+    if (!feeds.length) return "";
+    const formats = new Intl.ListFormat(options.locale, { type: "disjunction" }).format(
+      feeds.map((feed) => feed.name),
+    );
+    const first = feeds[0]!;
+    return `<p class="blog-feeds"><a class="blog-feeds-link" href="${escapeHtml(first.url)}" type="${first.type}">${FEED_ICON}<span>${escapeHtml(labels.subscribe)}</span></a><span class="blog-feeds-formats">${escapeHtml(formats)}</span></p>`;
   };
 
   const publisher = siteName
@@ -639,6 +655,7 @@ export function createHelpers(
       pageSize: (options.search && options.search.pageSize) || 12,
       labels,
       ...(page && page.kind !== "announcements" ? { browse: browseFor(page) } : {}),
+      ...(feedList().length ? { feeds: feedList(), feedTitle } : {}),
     };
     return jsonScript("blog-config", config);
   };
@@ -978,6 +995,8 @@ export function siteInfo(options: ResolvedBlogOptions, helpers: BlogRenderHelper
     title: options.index?.title ?? options.labels.blog,
     description: options.index?.description ?? "",
     feeds,
+    feedTitle:
+      (options.feeds && options.feeds.title) || options.index?.title || options.labels.blog,
     ...(helpers.searchUrl ? { searchUrl: helpers.searchUrl } : {}),
     labels: options.labels,
   };
