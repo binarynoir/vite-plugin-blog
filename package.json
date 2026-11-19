@@ -1,6 +1,6 @@
 {
   "name": "@binarynoir/vite-plugin-blog",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A static Markdown blog for any Vite site. Posts become plain HTML pages in your own page shell, with build-time Shiki highlighting that works under a strict Content Security Policy, checked front matter, drafts, scheduled posts and custom ::: directives.",
   "keywords": [
     "vite",
