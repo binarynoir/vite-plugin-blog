@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-19
+
 ### Changed
 
 - The default markup uses `blog-*` class names throughout, so it can't collide with a site's own (`.card`, `.tag`, `.prose`). For example: `post` is now `blog-post`, `prose` is `blog-prose`, `toc` is `blog-toc`, and `post-list` is `blog-list`. The README lists every class. Classes inside posts (`code-block`, `callout`, `heading-anchor`) are unchanged.
