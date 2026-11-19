@@ -1,0 +1,2 @@
+dns: { name: DNS, description: Records and resolvers. }
+homelab: { name: Homelab }
