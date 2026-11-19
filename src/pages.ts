@@ -1,13 +1,32 @@
 import type { BlogContent, ResolvedBlogOptions } from "./content.js";
 import { formatPostDate, toDateTimeAttribute } from "./dates.js";
+import { fillLabel } from "./shared/html.js";
+import {
+  breadcrumbTree,
+  cardListTree,
+  cardTree,
+  pagerTree,
+  searchFormTree,
+  type BlogCrumb,
+} from "./shared/markup.js";
+import { el, toHtml } from "./shared/tree.js";
+import type {
+  BlogClientConfig,
+  BlogPostSummary,
+  BlogSiteInfo,
+  BlogTagInfo,
+} from "./shared/types.js";
 import type {
   BlogLabels,
   BlogListPage,
   BlogPost,
   BlogRenderHelpers,
+  BlogShareNetwork,
   BlogTocEntry,
 } from "./types.js";
-import { escapeHtml, joinUrl } from "./util.js";
+import { escapeHtml, isExternalUrl, joinUrl } from "./util.js";
+
+export { fillLabel } from "./shared/html.js";
 
 export const HEAD_MARKER = "<!--blog:head-->";
 export const CONTENT_MARKER = "<!--blog:content-->";
@@ -15,6 +34,7 @@ export const CONTENT_MARKER = "<!--blog:content-->";
 /** Feed files under the blog's base, by kind. */
 export const FEED_FILES = { rss: "feed.xml", atom: "atom.xml", json: "feed.json" } as const;
 export const SITEMAP_FILE = "sitemap.xml";
+export const SEARCH_FILE = "search.json";
 
 const FEED_TYPES = {
   rss: "application/rss+xml",
@@ -22,15 +42,19 @@ const FEED_TYPES = {
   json: "application/feed+json",
 } as const;
 
+const FEED_NAMES = { rss: "RSS", atom: "Atom", json: "JSON Feed" } as const;
+
+const DEFAULT_SHARE: BlogShareNetwork[] = [
+  "linkedin",
+  "bluesky",
+  "x",
+  "hackernews",
+  "reddit",
+  "email",
+];
+
 function meta(attribute: "name" | "property", key: string, value: string | undefined): string {
   return value ? `<meta ${attribute}="${key}" content="${escapeHtml(value)}">` : "";
-}
-
-/** A label with its `{n}` and `{count}` filled in. */
-export function fillLabel(text: string, values: Record<string, string | number> = {}): string {
-  return text.replace(/\{(\w+)\}/g, (match, key: string) =>
-    Object.hasOwn(values, key) ? String(values[key]) : match,
-  );
 }
 
 /** The feeds this build writes. None without `site`, since feeds need absolute links. */
@@ -42,6 +66,10 @@ export function enabledFeeds(options: ResolvedBlogOptions): (keyof typeof FEED_F
 
 export function sitemapEnabled(options: ResolvedBlogOptions): boolean {
   return Boolean(options.site) && options.sitemap !== false;
+}
+
+export function searchEnabled(options: ResolvedBlogOptions): boolean {
+  return options.search !== false;
 }
 
 /** Tags with listed posts, in `tags.yml` order, then any others by name. */
@@ -85,7 +113,7 @@ export function listPages(options: ResolvedBlogOptions, content: BlogContent): B
       ? joinUrl(options.site, joinUrl(options.siteBase, sitePath))
       : undefined,
   });
-  const lists: Omit<BlogListPage, "url" | "page" | "pageCount">[] = [
+  const lists: Omit<BlogListPage, "url" | "page" | "pageCount" | "pageUrls">[] = [
     {
       kind: "index",
       title: options.index?.title ?? options.labels.blog,
@@ -96,10 +124,11 @@ export function listPages(options: ResolvedBlogOptions, content: BlogContent): B
   if (options.tagPages !== false) {
     for (const tag of usedTags(content)) {
       const info = content.tags[tag];
+      const title = info?.name ?? tag;
       lists.push({
         kind: "tag",
-        title: info?.name ?? tag,
-        description: info?.description ?? "",
+        title,
+        description: info?.description ?? fillLabel(options.labels.tagDescription, { tag: title }),
         tag,
         posts: pinnedFirst(content.listed.filter((post) => post.tags.includes(tag))),
       });
@@ -109,7 +138,7 @@ export function listPages(options: ResolvedBlogOptions, content: BlogContent): B
     lists.push({
       kind: "announcements",
       title: options.labels.announcements,
-      description: "",
+      description: options.labels.announcementsDescription,
       posts: content.announcements,
     });
   }
@@ -119,6 +148,9 @@ export function listPages(options: ResolvedBlogOptions, content: BlogContent): B
     const size = options.pageSize || list.posts.length || 1;
     const pageCount = Math.max(1, Math.ceil(list.posts.length / size));
     const pathFor = (page: number) => listPath(options, list.kind, list.tag, page);
+    const pageUrls = Array.from({ length: pageCount }, (_, i) =>
+      joinUrl(options.siteBase, pathFor(i + 1)),
+    );
     for (let page = 1; page <= pageCount; page++) {
       pages.push({
         ...list,
@@ -126,8 +158,9 @@ export function listPages(options: ResolvedBlogOptions, content: BlogContent): B
         posts: list.posts.slice((page - 1) * size, page * size),
         page,
         pageCount,
-        previousUrl: page > 1 ? joinUrl(options.siteBase, pathFor(page - 1)) : undefined,
-        nextUrl: page < pageCount ? joinUrl(options.siteBase, pathFor(page + 1)) : undefined,
+        pageUrls,
+        previousUrl: page > 1 ? pageUrls[page - 2] : undefined,
+        nextUrl: page < pageCount ? pageUrls[page] : undefined,
       });
     }
   }
@@ -143,6 +176,7 @@ export function blogPaths(options: ResolvedBlogOptions, content: BlogContent): S
   for (const post of content.posts) paths.add(`${options.base}${post.slug}/`);
   for (const kind of enabledFeeds(options)) paths.add(`${options.base}${FEED_FILES[kind]}`);
   if (sitemapEnabled(options)) paths.add(`${options.base}${SITEMAP_FILE}`);
+  if (searchEnabled(options)) paths.add(`${options.base}${SEARCH_FILE}`);
   return paths;
 }
 
@@ -178,16 +212,20 @@ export function checkLinks(options: ResolvedBlogOptions, content: BlogContent): 
   }
 }
 
-export function renderToc(toc: BlogTocEntry[], title = "On this page"): string {
-  if (toc.length < 2) return "";
-  const items = toc
+function tocItems(toc: BlogTocEntry[]): string {
+  return toc
     .map(
       (entry) =>
-        `<li class="toc-${entry.level}"><a href="#${escapeHtml(entry.id)}">${escapeHtml(entry.text)}</a></li>`,
+        `<li class="blog-toc-${entry.level}"><a href="#${escapeHtml(entry.id)}">${escapeHtml(entry.text)}</a></li>`,
     )
     .join("");
+}
+
+/** The table of contents as a `<nav>`, or `''` with fewer than two headings. */
+export function renderToc(toc: BlogTocEntry[], title = "On this page"): string {
+  if (toc.length < 2) return "";
   const name = escapeHtml(title);
-  return `<nav class="toc" aria-label="${name}"><p class="toc-title">${name}</p><ol>${items}</ol></nav>`;
+  return `<nav class="blog-toc" aria-label="${name}"><p class="blog-toc-title">${name}</p><ol>${tocItems(toc)}</ol></nav>`;
 }
 
 /**
@@ -197,6 +235,48 @@ export function renderToc(toc: BlogTocEntry[], title = "On this page"): string {
 function jsonLd(data: unknown): string {
   return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`;
 }
+
+/** JSON for `<script type="application/json">`, escaped the same way. */
+function jsonScript(id: string, data: unknown): string {
+  return `<script type="application/json" id="${id}">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`;
+}
+
+function shareUrl(
+  network: BlogShareNetwork,
+  url: string,
+  title: string,
+  mastodon?: string,
+): string | undefined {
+  const u = encodeURIComponent(url);
+  const t = encodeURIComponent(title);
+  switch (network) {
+    case "linkedin":
+      return `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
+    case "bluesky":
+      return `https://bsky.app/intent/compose?text=${encodeURIComponent(`${title} ${url}`)}`;
+    case "x":
+      return `https://x.com/intent/post?text=${t}&url=${u}`;
+    case "hackernews":
+      return `https://news.ycombinator.com/submitlink?u=${u}&t=${t}`;
+    case "reddit":
+      return `https://www.reddit.com/submit?url=${u}&title=${t}`;
+    case "mastodon":
+      return mastodon
+        ? `https://${mastodon.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/share?text=${encodeURIComponent(`${title} ${url}`)}`
+        : undefined;
+    case "email":
+      return `mailto:?subject=${t}&body=${u}`;
+  }
+}
+
+const NETWORK_NAMES: Record<Exclude<BlogShareNetwork, "email">, string> = {
+  linkedin: "LinkedIn",
+  bluesky: "Bluesky",
+  x: "X",
+  hackernews: "Hacker News",
+  reddit: "Reddit",
+  mastodon: "Mastodon",
+};
 
 export function createHelpers(
   options: ResolvedBlogOptions,
@@ -217,23 +297,62 @@ export function createHelpers(
     toDateTimeAttribute({ date, hasTime }, options.timeZone);
   const time = (date: Date, hasTime = false) =>
     `<time datetime="${dateAttribute(date, hasTime)}">${formatDate(date, hasTime)}</time>`;
-  const readingTime = (post: BlogPost) =>
-    escapeHtml(label("readingTime", { n: post.readingMinutes }));
+  const absolute = (sitePath: string) =>
+    options.site ? joinUrl(options.site, sitePath) : undefined;
 
   const tags = usedTags(content);
   const tagsWithPages = new Set(options.tagPages === false ? [] : tags);
   const indexUrl = joinUrl(options.siteBase, listPath(options, "index"));
+  const indexTitle = options.index?.title ?? labels.blog;
   const tagUrl = (tag: string) => joinUrl(options.siteBase, listPath(options, "tag", tag));
+  const tagName = (tag: string) => content.tags[tag]?.name ?? tag;
   const announcementsUrl = content.announcements.length
     ? joinUrl(options.siteBase, listPath(options, "announcements"))
     : undefined;
-  /** A tag as a list item, linked when it has a page. */
-  const tagItem = (tag: string) => {
-    const name = escapeHtml(content.tags[tag]?.name ?? tag);
-    return tagsWithPages.has(tag)
-      ? `<li class="tag"><a href="${escapeHtml(tagUrl(tag))}">${name}</a></li>`
-      : `<li class="tag">${name}</li>`;
-  };
+  const searchUrl = searchEnabled(options)
+    ? joinUrl(options.siteBase, `${options.base}${SEARCH_FILE}`)
+    : undefined;
+  const siteName = options.siteName;
+  /** `<title>`'s ending on list pages. */
+  const listSuffix = siteName ? ` · ${siteName}` : options.titleSuffix;
+  const image = options.image
+    ? isExternalUrl(options.image)
+      ? options.image
+      : absolute(joinUrl(options.siteBase, options.image))
+    : undefined;
+
+  const tagInfo: Record<string, BlogTagInfo> = {};
+  for (const tag of new Set([...Object.keys(content.tags), ...tags])) {
+    tagInfo[tag] = {
+      name: tagName(tag),
+      ...(content.tags[tag]?.description ? { description: content.tags[tag]!.description } : {}),
+      ...(tagsWithPages.has(tag) ? { url: tagUrl(tag) } : {}),
+    };
+  }
+
+  const summary = (post: BlogPost): BlogPostSummary => ({
+    slug: post.slug,
+    url: post.url,
+    title: post.title,
+    description: post.description,
+    date: post.date.toISOString(),
+    // Lists show the day alone; the post's own page shows its time.
+    dateText: formatDate(post.date),
+    dateTime: dateAttribute(post.date),
+    ...(post.updated ? { updated: post.updated.toISOString() } : {}),
+    tags: post.tags,
+    // Names and links only: an author's email stays out of client code.
+    authors: post.authors.map((author) => ({
+      name: author.name,
+      ...(author.url ? { url: author.url } : {}),
+    })),
+    pinned: post.pinned,
+    featured: post.featured,
+    ...(post.series ? { series: post.series } : {}),
+    ...(post.coverPath ? { cover: post.coverPath } : {}),
+    readingMinutes: post.readingMinutes,
+    data: post.data,
+  });
 
   const adjacent = (post: BlogPost) => {
     const at = content.listed.indexOf(post);
@@ -241,30 +360,119 @@ export function createHelpers(
     return { newer: content.listed[at - 1], older: content.listed[at + 1] };
   };
 
+  const related = (post: BlogPost, limit = options.related ?? 3) =>
+    limit <= 0
+      ? []
+      : content.listed
+          .filter((other) => other !== post && other.slug !== post.slug)
+          .map((other) => ({
+            other,
+            shared: other.tags.filter((tag) => post.tags.includes(tag)).length,
+          }))
+          .filter(({ shared }) => shared > 0)
+          .sort((a, b) => b.shared - a.shared || b.other.date.getTime() - a.other.date.getTime())
+          .slice(0, limit)
+          .map(({ other }) => other);
+
+  const series = (post: BlogPost) => {
+    if (!post.series) return undefined;
+    const posts = content.listed.filter((other) => other.series === post.series).reverse();
+    const index = posts.findIndex((other) => other.slug === post.slug);
+    return posts.length > 1 && index >= 0 ? { posts, index } : undefined;
+  };
+
+  const breadcrumbs = (target: BlogPost | BlogListPage): BlogCrumb[] => {
+    const root: BlogCrumb = { name: indexTitle, url: indexUrl };
+    if ("slug" in target) {
+      const first = target.tags.find((tag) => tagsWithPages.has(tag));
+      return [root, ...(first ? [{ name: tagName(first), url: tagUrl(first) }] : [])];
+    }
+    const pageCrumb = target.page > 1 ? [{ name: label("page", { n: target.page }) }] : [];
+    if (target.kind === "index") return target.page > 1 ? [root, ...pageCrumb] : [];
+    const first = target.pageUrls[0]!;
+    return [
+      root,
+      target.page > 1 ? { name: target.title, url: first } : { name: target.title },
+      ...pageCrumb,
+    ];
+  };
+
+  const renderBreadcrumbs = (items: BlogCrumb[]) =>
+    items.length ? toHtml(breadcrumbTree(items, labels)) : "";
+
+  /** BreadcrumbList structured data, from the site's home to the page itself. */
+  const breadcrumbLd = (items: BlogCrumb[], self?: { name: string; url?: string }) => {
+    if (!options.site) return "";
+    const trail = [
+      { name: siteName ?? "Home", url: absolute(options.siteBase) },
+      ...items.map((item) => ({ name: item.name, url: item.url && absolute(item.url) })),
+      ...(self ? [self] : []),
+    ];
+    return jsonLd({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: trail.map((item, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: item.name,
+        ...(item.url ? { item: item.url } : {}),
+      })),
+    });
+  };
+
   const feedTitle = (options.feeds && options.feeds.title) || options.index?.title || labels.blog;
+  const feedPath = (kind: keyof typeof FEED_FILES) =>
+    joinUrl(options.siteBase, `${options.base}${FEED_FILES[kind]}`);
   const renderFeedLinks = () =>
     enabledFeeds(options)
-      .map((kind) => {
-        const href = joinUrl(options.siteBase, `${options.base}${FEED_FILES[kind]}`);
-        return `<link rel="alternate" type="${FEED_TYPES[kind]}" title="${escapeHtml(feedTitle)}" href="${escapeHtml(href)}">`;
-      })
+      .map(
+        (kind) =>
+          `<link rel="alternate" type="${FEED_TYPES[kind]}" title="${escapeHtml(feedTitle)}" href="${escapeHtml(feedPath(kind))}">`,
+      )
       .join("\n    ");
 
-  const renderHead = (post: BlogPost) =>
-    [
+  const renderFeedList = () => {
+    const kinds = enabledFeeds(options);
+    if (!kinds.length) return "";
+    const links = kinds
+      .map(
+        (kind) =>
+          `<a href="${escapeHtml(feedPath(kind))}" type="${FEED_TYPES[kind]}">${FEED_NAMES[kind]}</a>`,
+      )
+      .join(" ");
+    return `<p class="blog-feeds"><span>${escapeHtml(labels.subscribe)}</span> ${links}</p>`;
+  };
+
+  const publisher = siteName
+    ? {
+        publisher: {
+          "@type": "Organization",
+          name: siteName,
+          ...(options.site ? { url: absolute(options.siteBase) } : {}),
+        },
+      }
+    : {};
+  const indexCanonical = absolute(indexUrl);
+
+  const renderHead = (post: BlogPost) => {
+    const cardImage = post.coverUrl ?? image;
+    const crumbs = breadcrumbs(post);
+    return [
       `<title>${escapeHtml(post.title + options.titleSuffix)}</title>`,
       meta("name", "description", post.description),
       post.draft || post.scheduled || post.unlisted ? '<meta name="robots" content="noindex">' : "",
       post.canonical ? `<link rel="canonical" href="${escapeHtml(post.canonical)}">` : "",
       meta("property", "og:type", "article"),
+      meta("property", "og:site_name", siteName),
       meta("property", "og:title", post.title),
       meta("property", "og:description", post.description),
       meta("property", "og:url", post.canonical),
-      meta("property", "og:image", post.coverUrl),
+      meta("property", "og:image", cardImage),
       meta("property", "article:published_time", post.date.toISOString()),
       meta("property", "article:modified_time", post.updated?.toISOString()),
-      ...post.tags.map((tag) => meta("property", "article:tag", content.tags[tag]?.name ?? tag)),
-      meta("name", "twitter:card", post.coverUrl ? "summary_large_image" : "summary"),
+      meta("property", "article:section", post.tags[0] && tagName(post.tags[0])),
+      ...post.tags.map((tag) => meta("property", "article:tag", tagName(tag))),
+      meta("name", "twitter:card", cardImage ? "summary_large_image" : "summary"),
       renderFeedLinks(),
       jsonLd({
         "@context": "https://schema.org",
@@ -274,7 +482,7 @@ export function createHelpers(
         datePublished: post.date.toISOString(),
         ...(post.updated ? { dateModified: post.updated.toISOString() } : {}),
         ...(post.canonical ? { url: post.canonical, mainEntityOfPage: post.canonical } : {}),
-        ...(post.coverUrl ? { image: post.coverUrl } : {}),
+        ...(cardImage ? { image: cardImage } : {}),
         ...(post.authors.length
           ? {
               author: post.authors.map((author) => ({
@@ -284,14 +492,23 @@ export function createHelpers(
               })),
             }
           : {}),
-        ...(post.tags.length
-          ? { keywords: post.tags.map((tag) => content.tags[tag]?.name ?? tag).join(", ") }
+        ...publisher,
+        ...(indexCanonical
+          ? { isPartOf: { "@type": "Blog", name: indexTitle, url: indexCanonical } }
           : {}),
+        ...(post.tags.length ? { articleSection: tagName(post.tags[0]!) } : {}),
+        ...(post.tags.length ? { keywords: post.tags.map(tagName).join(", ") } : {}),
         wordCount: post.words,
       }),
+      breadcrumbLd(crumbs, { name: post.title, url: post.canonical }),
     ]
       .filter(Boolean)
       .join("\n    ");
+  };
+
+  const cardPost = (post: BlogPost) => summary(post);
+  const renderCard: BlogRenderHelpers["renderCard"] = (post, cardOptions = {}) =>
+    toHtml(cardTree(cardPost(post), { labels, tags: tagInfo, ...cardOptions }));
 
   const byline = (post: BlogPost) => {
     if (!post.authors.length) return "";
@@ -300,40 +517,133 @@ export function createHelpers(
         ? `<a href="${escapeHtml(author.url)}">${escapeHtml(author.name)}</a>`
         : escapeHtml(author.name),
     );
-    return ` · ${escapeHtml(labels.by)} ${names.join(", ")}`;
+    return `<span>${escapeHtml(labels.by)} ${names.join(", ")}</span>`;
+  };
+
+  const renderShare = (post: BlogPost) => {
+    if (options.share === false || !post.canonical) return "";
+    const share = options.share ?? {};
+    const links = (share.networks ?? DEFAULT_SHARE)
+      .map((network) => {
+        const href = shareUrl(network, post.canonical!, post.title, share.mastodon);
+        if (!href) return "";
+        const name = network === "email" ? labels.email : NETWORK_NAMES[network];
+        const external = network === "email" ? "" : ' target="_blank" rel="noopener noreferrer"';
+        return `<li><a class="blog-share-link" data-network="${network}" href="${escapeHtml(href)}"${external}>${escapeHtml(name)}</a></li>`;
+      })
+      .join("");
+    const copy = `<li><button type="button" class="blog-share-copy" data-blog-copy-link="${escapeHtml(post.canonical)}" hidden>${escapeHtml(labels.copyLink)}</button></li>`;
+    return `<div class="blog-share"><p class="blog-share-title">${escapeHtml(labels.share)}</p><ul>${links}${copy}</ul></div>`;
+  };
+
+  const renderSeries = (post: BlogPost) => {
+    const found = series(post);
+    if (!found) return "";
+    const items = found.posts
+      .map((other, i) =>
+        i === found.index
+          ? `<li><span aria-current="page">${escapeHtml(other.title)}</span></li>`
+          : `<li><a href="${escapeHtml(other.url)}">${escapeHtml(other.title)}</a></li>`,
+      )
+      .join("");
+    const part = label("seriesPart", { n: found.index + 1, count: found.posts.length });
+    return `<nav class="blog-series" aria-labelledby="blog-series-title"><p class="blog-series-title" id="blog-series-title">${escapeHtml(labels.series)} <span>${escapeHtml(part)}</span></p><ol>${items}</ol></nav>`;
+  };
+
+  const renderRelated = (post: BlogPost) => {
+    const more = related(post);
+    if (!more.length) return "";
+    return `<section class="blog-related" aria-labelledby="blog-related-title"><h2 id="blog-related-title">${escapeHtml(labels.relatedPosts)}</h2>${toHtml(
+      cardListTree(more.map(cardPost), { labels, tags: tagInfo, headingLevel: 3, cover: false }),
+    )}</section>`;
   };
 
   const postNav = (post: BlogPost) => {
     const { newer, older } = adjacent(post);
     if (!newer && !older) return "";
     const link = (target: BlogPost, kind: "newer" | "older") =>
-      `<a class="post-nav-${kind}" rel="${kind === "newer" ? "prev" : "next"}" href="${escapeHtml(target.url)}"><span>${escapeHtml(labels[kind])}</span> ${escapeHtml(target.title)}</a>`;
-    return `<nav class="post-nav" aria-label="${escapeHtml(labels.newer)} / ${escapeHtml(labels.older)}">${
+      `<a class="blog-post-nav-${kind}" rel="${kind === "newer" ? "prev" : "next"}" href="${escapeHtml(target.url)}"><span>${escapeHtml(labels[kind])}</span> ${escapeHtml(target.title)}</a>`;
+    return `<nav class="blog-post-nav" aria-label="${escapeHtml(labels.newer)} / ${escapeHtml(labels.older)}">${
       newer ? link(newer, "newer") : ""
     }${older ? link(older, "older") : ""}</nav>`;
   };
 
-  const renderArticle = (post: BlogPost) => {
-    const postTags = post.tags.map(tagItem).join("");
-    const updated = post.updated ? ` · ${escapeHtml(labels.updated)} ${time(post.updated)}` : "";
+  const renderClientConfig = (page?: BlogListPage) => {
+    const config: BlogClientConfig = {
+      indexUrl,
+      ...(searchUrl ? { searchUrl } : {}),
+      ...(page?.kind === "tag" && page.tag ? { tag: page.tag, tagName: page.title } : {}),
+      pageSize: (options.search && options.search.pageSize) || 12,
+      labels,
+    };
+    return jsonScript("blog-config", config);
+  };
+
+  const renderArticle: BlogRenderHelpers["renderArticle"] = (post, parts = {}) => {
+    const postTags = toHtml(
+      el(
+        "ul",
+        { class: "blog-tags" },
+        ...post.tags.map((tag) =>
+          el(
+            "li",
+            null,
+            tagsWithPages.has(tag)
+              ? el("a", { class: "blog-tag", href: tagUrl(tag) }, tagName(tag))
+              : el("span", { class: "blog-tag" }, tagName(tag)),
+          ),
+        ),
+      ),
+    );
+    const updated = post.updated
+      ? `<span>${escapeHtml(labels.updated)} ${time(post.updated)}</span>`
+      : "";
+    const hasToc = post.toc.length >= 2;
+    const toc = escapeHtml(labels.onThisPage);
+    // Two copies of the contents: a sticky column on wide screens, and a collapsed
+    // list above the article on narrow ones. The stylesheet shows one.
+    const tocSide = hasToc
+      ? `<aside class="blog-toc blog-toc-side"><nav aria-label="${toc}"><p class="blog-toc-title">${toc}</p><ol>${tocItems(post.toc)}</ol></nav></aside>`
+      : "";
+    const tocInline = hasToc
+      ? `<details class="blog-toc blog-toc-inline"><summary>${toc}</summary><nav aria-label="${toc}"><ol>${tocItems(post.toc)}</ol></nav></details>`
+      : "";
+    const seriesNav = renderSeries(post);
+    const relatedList = renderRelated(post);
+    const end = [
+      parts.end ?? "",
+      renderShare(post),
+      seriesNav,
+      relatedList,
+      // Newer and older posts only when there's nothing closer to read next.
+      seriesNav || relatedList ? "" : postNav(post),
+    ].filter(Boolean);
     return [
-      '<article class="post">',
-      '<header class="post-header">',
+      renderBreadcrumbs(breadcrumbs(post)),
+      `<div class="blog-layout${hasToc ? " has-toc" : ""}">`,
+      '<article class="blog-post">',
+      '<header class="blog-post-head">',
       `<h1>${escapeHtml(post.title)}</h1>`,
-      `<p class="post-description">${escapeHtml(post.description)}</p>`,
-      `<p class="post-meta">${time(post.date, post.dateHasTime)}${updated} · ${readingTime(post)}${byline(post)}</p>`,
-      postTags ? `<ul class="post-tags">${postTags}</ul>` : "",
+      `<p class="blog-lead">${escapeHtml(post.description)}</p>`,
+      `<p class="blog-meta">${time(post.date, post.dateHasTime)}${updated}<span>${escapeHtml(label("readingTime", { n: post.readingMinutes }))}</span>${byline(post)}</p>`,
+      post.tags.length ? postTags : "",
       "</header>",
-      renderToc(post.toc, labels.onThisPage),
-      `<div class="prose" data-pagefind-body>\n${post.html}</div>`,
-      postNav(post),
+      post.cover
+        ? `<img class="blog-post-cover" src="${escapeHtml(post.cover)}" alt="" fetchpriority="high" decoding="async">`
+        : "",
+      parts.beforeBody ?? "",
+      tocInline,
+      `<div class="blog-prose" data-pagefind-body>\n${post.html}</div>`,
+      end.length ? `<footer class="blog-post-end">\n${end.join("\n")}\n</footer>` : "",
       "</article>",
+      tocSide,
+      "</div>",
+      renderClientConfig(),
     ]
       .filter(Boolean)
       .join("\n");
   };
 
-  const indexTitle = options.index?.title ?? labels.blog;
   const pageOf = (page: BlogListPage) => label("pageOf", { n: page.page, count: page.pageCount });
   const listTitle = (page: BlogListPage) => {
     const title = page.kind === "index" ? page.title : `${page.title} · ${indexTitle}`;
@@ -342,7 +652,7 @@ export function createHelpers(
 
   const renderListHead = (page: BlogListPage) =>
     [
-      `<title>${escapeHtml(listTitle(page) + options.titleSuffix)}</title>`,
+      `<title>${escapeHtml(listTitle(page) + listSuffix)}</title>`,
       meta("name", "description", page.description),
       // The announcements page only repeats posts listed elsewhere.
       page.kind === "announcements" ? '<meta name="robots" content="noindex">' : "",
@@ -350,62 +660,142 @@ export function createHelpers(
       page.previousUrl ? `<link rel="prev" href="${escapeHtml(page.previousUrl)}">` : "",
       page.nextUrl ? `<link rel="next" href="${escapeHtml(page.nextUrl)}">` : "",
       meta("property", "og:type", "website"),
+      meta("property", "og:site_name", siteName),
       meta("property", "og:title", listTitle(page)),
       meta("property", "og:description", page.description),
       meta("property", "og:url", page.canonical),
+      meta("property", "og:image", image),
+      meta("name", "twitter:card", image ? "summary_large_image" : "summary"),
       renderFeedLinks(),
+      page.kind === "announcements" || !page.canonical
+        ? ""
+        : jsonLd({
+            "@context": "https://schema.org",
+            "@type": page.kind === "index" ? "Blog" : "CollectionPage",
+            name: page.kind === "index" ? page.title : listTitle(page),
+            ...(page.description ? { description: page.description } : {}),
+            url: page.canonical,
+            ...(page.kind === "index"
+              ? publisher
+              : indexCanonical
+                ? { isPartOf: { "@type": "Blog", name: indexTitle, url: indexCanonical } }
+                : {}),
+            [page.kind === "index" ? "blogPost" : "hasPart"]: page.posts.map((post) => ({
+              "@type": "BlogPosting",
+              headline: post.title,
+              url: post.canonical,
+              datePublished: post.date.toISOString(),
+            })),
+          }),
+      page.kind === "index" && page.page === 1
+        ? ""
+        : breadcrumbLd(
+            breadcrumbs(page).filter((item) => item.url),
+            {
+              name: page.page > 1 ? label("page", { n: page.page }) : page.title,
+              url: page.canonical,
+            },
+          ),
     ]
       .filter(Boolean)
       .join("\n    ");
 
-  const renderList = (page: BlogListPage) => {
-    const items = page.posts
-      .map((post) => {
-        const postTags = post.tags.map(tagItem).join("");
-        return [
-          `<li class="post-item${post.pinned ? " pinned" : ""}">`,
-          `<h2><a href="${escapeHtml(post.url)}">${escapeHtml(post.title)}</a></h2>`,
-          `<p class="post-meta">${time(post.date, post.dateHasTime)} · ${readingTime(post)}</p>`,
-          `<p class="post-description">${escapeHtml(post.description)}</p>`,
-          postTags ? `<ul class="post-tags">${postTags}</ul>` : "",
-          "</li>",
-        ]
-          .filter(Boolean)
-          .join("");
-      })
-      .join("\n");
-    const tagLinks = [...tagsWithPages]
-      .map((tag) => {
-        const current = page.tag === tag ? ' aria-current="page"' : "";
-        return `<li><a href="${escapeHtml(tagUrl(tag))}"${current}>${escapeHtml(content.tags[tag]?.name ?? tag)}</a></li>`;
-      })
+  const renderTopics = (page?: BlogListPage) => {
+    if (!tagsWithPages.size) return "";
+    const current = (on: boolean) => (on ? ' aria-current="page"' : "");
+    const all = `<li><a class="blog-tag" href="${escapeHtml(indexUrl)}"${current(page?.kind === "index")}>${escapeHtml(labels.allPosts)}</a></li>`;
+    const links = [...tagsWithPages]
+      .map(
+        (tag) =>
+          `<li><a class="blog-tag" href="${escapeHtml(tagUrl(tag))}"${current(page?.tag === tag)}>${escapeHtml(tagName(tag))}</a></li>`,
+      )
       .join("");
-    const pager =
-      page.pageCount > 1
-        ? `<nav class="post-pages" aria-label="${escapeHtml(pageOf(page))}">${
-            page.previousUrl
-              ? `<a rel="prev" href="${escapeHtml(page.previousUrl)}">${escapeHtml(labels.previous)}</a>`
-              : ""
-          }<span>${escapeHtml(pageOf(page))}</span>${
-            page.nextUrl
-              ? `<a rel="next" href="${escapeHtml(page.nextUrl)}">${escapeHtml(labels.next)}</a>`
-              : ""
-          }</nav>`
-        : "";
+    return `<nav class="blog-topics" aria-label="${escapeHtml(labels.topics)}"><ul>${all}${links}</ul></nav>`;
+  };
+
+  const renderSearch = (page: BlogListPage) =>
+    searchUrl
+      ? `<div class="blog-explorer" data-blog-explorer>${toHtml(
+          searchFormTree({
+            labels,
+            indexUrl,
+            query: "",
+            sort: "newest",
+            tagName: page.kind === "tag" ? page.title : undefined,
+            interactive: false,
+          }),
+        )}</div>`
+      : "";
+
+  const renderPager = (page: BlogListPage) =>
+    toHtml(
+      pagerTree({
+        page: page.page,
+        pageCount: page.pageCount,
+        href: (n) => page.pageUrls[n - 1]!,
+        labels,
+      }),
+    );
+
+  const renderList: BlogRenderHelpers["renderList"] = (page, parts = {}) => {
+    const eyebrow =
+      parts.eyebrow ??
+      (page.kind === "index"
+        ? (options.index?.eyebrow ?? siteName)
+        : page.kind === "tag"
+          ? labels.topic
+          : indexTitle);
+    const lead = parts.lead ?? page.description;
+    // The index's first page features a post marked `featured: true`, or else
+    // the first one: a pinned post, or the newest.
+    const featured =
+      page.kind === "index" && page.page === 1 && page.posts.length > 1
+        ? (page.posts.find((post) => post.featured) ?? page.posts[0])
+        : undefined;
+    const rest = page.posts.filter((post) => post !== featured);
+    const listName = page.kind === "announcements" ? labels.announcements : labels.allPosts;
+    const cards = rest.length
+      ? `<section class="blog-list-posts" aria-labelledby="blog-posts-title"><h2 id="blog-posts-title" class="blog-visually-hidden">${escapeHtml(listName)}</h2>${toHtml(
+          cardListTree(rest.map(cardPost), {
+            labels,
+            tags: tagInfo,
+            headingLevel: featured ? 3 : 2,
+          }),
+        )}</section>`
+      : "";
     return [
-      `<section class="post-list" aria-labelledby="post-list-title">`,
-      `<h1 id="post-list-title">${escapeHtml(page.title)}</h1>`,
-      page.description
-        ? `<p class="post-list-description">${escapeHtml(page.description)}</p>`
+      `<div class="blog-list" data-kind="${page.kind}">`,
+      renderBreadcrumbs(breadcrumbs(page)),
+      '<header class="blog-list-head">',
+      eyebrow ? `<p class="blog-eyebrow">${escapeHtml(eyebrow)}</p>` : "",
+      `<h1>${escapeHtml(page.title)}</h1>`,
+      lead ? `<p class="blog-lead">${escapeHtml(lead)}</p>` : "",
+      "</header>",
+      page.kind === "announcements" ? "" : renderSearch(page),
+      page.kind === "announcements" ? "" : renderTopics(page),
+      searchUrl && page.kind !== "announcements"
+        ? '<div class="blog-results-slot" data-blog-results></div>'
         : "",
-      tagLinks
-        ? `<nav class="post-list-tags" aria-label="${escapeHtml(labels.tags)}"><ul>${tagLinks}</ul></nav>`
+      '<div class="blog-static" data-blog-static>',
+      featured
+        ? toHtml(
+            cardTree(cardPost(featured), {
+              labels,
+              tags: tagInfo,
+              headingLevel: 2,
+              featured: true,
+              label: featured.featured ? labels.featured : labels.latest,
+            }),
+          )
         : "",
-      items
-        ? `<ul class="post-items">\n${items}\n</ul>`
-        : `<p class="post-list-empty">${escapeHtml(labels.noPosts)}</p>`,
-      pager,
-      "</section>",
+      cards,
+      page.posts.length ? "" : `<p class="blog-empty">${escapeHtml(labels.noPosts)}</p>`,
+      renderPager(page),
+      "</div>",
+      parts.end ?? "",
+      renderFeedList(),
+      renderClientConfig(page),
+      "</div>",
     ]
       .filter(Boolean)
       .join("\n");
@@ -422,7 +812,24 @@ export function createHelpers(
     announcementsUrl,
     usedTags: tags,
     adjacent,
+    related,
+    series,
+    summary,
+    tagInfo,
+    breadcrumbs,
+    siteName,
+    searchUrl,
     renderToc: (toc) => renderToc(toc, labels.onThisPage),
+    renderBreadcrumbs,
+    renderCard,
+    renderPager,
+    renderShare,
+    renderSeries,
+    renderRelated,
+    renderTopics,
+    renderSearch,
+    renderFeedList,
+    renderClientConfig,
     renderHead,
     renderArticle,
     renderListHead,
@@ -463,21 +870,18 @@ export function renderListPage(
   return fillTemplate(template, head, body);
 }
 
-/** What `virtual:blog/posts` exports for each listed post: everything but the HTML. */
-export function postSummaries(posts: BlogPost[]) {
-  return posts.map((post) => ({
-    slug: post.slug,
-    url: post.url,
-    title: post.title,
-    description: post.description,
-    date: post.date.toISOString(),
-    updated: post.updated?.toISOString(),
-    tags: post.tags,
-    authors: post.authors,
-    pinned: post.pinned,
-    featured: post.featured,
-    series: post.series,
-    readingMinutes: post.readingMinutes,
-    data: post.data,
-  }));
+/** What `virtual:blog/posts` and `virtual:blog/latest` export besides `posts`. */
+export function siteInfo(options: ResolvedBlogOptions, helpers: BlogRenderHelpers): BlogSiteInfo {
+  const feeds: BlogSiteInfo["feeds"] = {};
+  for (const kind of enabledFeeds(options)) {
+    feeds[kind] = joinUrl(options.siteBase, `${options.base}${FEED_FILES[kind]}`);
+  }
+  return {
+    indexUrl: helpers.indexUrl,
+    title: options.index?.title ?? options.labels.blog,
+    description: options.index?.description ?? "",
+    feeds,
+    ...(helpers.searchUrl ? { searchUrl: helpers.searchUrl } : {}),
+    labels: options.labels,
+  };
 }

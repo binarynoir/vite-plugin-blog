@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -171,11 +171,11 @@ describe("posts", () => {
     expect(html).toContain('By <a href="https://example.com/jane">Jane Doe</a>');
   });
 
-  it("link to the newer and older listed posts", async () => {
-    const { read } = await built();
+  it("link to the newer and older listed posts when none are related", async () => {
+    const { read } = await built({ related: 0 });
     const html = read("blog/hello/index.html");
-    expect(html).toContain('<a class="post-nav-newer" rel="prev" href="/blog/notice/">');
-    expect(html).toContain('<a class="post-nav-older" rel="next" href="/blog/later/">');
+    expect(html).toContain('<a class="blog-post-nav-newer" rel="prev" href="/blog/notice/">');
+    expect(html).toContain('<a class="blog-post-nav-older" rel="next" href="/blog/later/">');
     // The unlisted post (dated between them) is skipped.
     expect(html).not.toContain('href="/blog/quiet/"');
   });
@@ -190,7 +190,9 @@ describe("posts", () => {
 describe("lists", () => {
   it("split into pages of pageSize posts", async () => {
     const { read, has } = await built({ pageSize: 1 });
-    expect(read("blog/index.html")).toContain('<a rel="next" href="/blog/page/2/">Next</a>');
+    expect(read("blog/index.html")).toContain(
+      '<a class="blog-pager-next" href="/blog/page/2/" rel="next" data-page="2">Next →</a>',
+    );
     const second = read("blog/page/2/index.html");
     expect(second).toContain("<title>Blog · Page 2 of 3</title>");
     expect(second).toContain('<link rel="prev" href="/blog/">');
@@ -224,5 +226,23 @@ describe("dev", () => {
     } finally {
       await server.close();
     }
+  });
+});
+
+describe("tags.yml", () => {
+  it("fails on unknown fields, such as a description split by unquoted commas", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "vite-plugin-blog-tags-"));
+    outDirs.push(dir);
+    mkdirSync(path.join(dir, "posts"));
+    writeFileSync(
+      path.join(dir, "tags.yml"),
+      "email: { name: Email, description: SPF, DKIM and DMARC }\n",
+    );
+    writeFileSync(
+      path.join(dir, "posts", "a.md"),
+      "---\ntitle: A\ndescription: B\ndate: 2026-11-01\ntags: [email]\n---\nText.\n",
+    );
+    const { inline } = config({ dir });
+    await expect(build(inline)).rejects.toThrow(/tag "email" has unknown field "DKIM and DMARC"/);
   });
 });

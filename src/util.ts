@@ -1,17 +1,6 @@
 import { parse } from "yaml";
 
-const HTML_ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-/** Escapes the characters that are special in HTML text and attribute values. */
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => HTML_ESCAPES[character]!);
-}
+export { escapeHtml } from "./shared/html.js";
 
 /** A URL with a scheme (`https:`, `mailto:`) or protocol-relative (`//cdn`). */
 export function isExternalUrl(url: string): boolean {

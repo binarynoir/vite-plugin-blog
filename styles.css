@@ -1,0 +1,878 @@
+/*
+ * @binarynoir/vite-plugin-blog/styles.css
+ *
+ * Default styles for the markup the plugin writes and the Vue components render.
+ * Theme it with the --blog-* custom properties below; every rule is wrapped in
+ * :where(), so it has zero specificity and any rule of yours wins.
+ * Breakpoints: 1000px (contents column), 760px (one card column), 560px (phones).
+ */
+
+:where(:root) {
+  --blog-text: CanvasText;
+  --blog-muted: color-mix(in srgb, CanvasText 64%, Canvas);
+  --blog-surface: Canvas;
+  --blog-border: color-mix(in srgb, CanvasText 14%, Canvas);
+  --blog-muted-bg: color-mix(in srgb, CanvasText 5%, Canvas);
+  --blog-accent: LinkText;
+  --blog-accent-hover: var(--blog-accent);
+  --blog-accent-tint: color-mix(in srgb, var(--blog-accent) 12%, Canvas);
+  --blog-accent-tint-text: var(--blog-accent);
+  --blog-warning: #b45309;
+  --blog-warning-tint: color-mix(in srgb, var(--blog-warning) 14%, Canvas);
+  --blog-focus: var(--blog-accent);
+  --blog-code-bg: #0d1117;
+  --blog-code-text: #e6edf3;
+  --blog-code-border: #30363d;
+  --blog-font-display: inherit;
+  --blog-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --blog-radius: 16px;
+  --blog-radius-small: 10px;
+  --blog-measure: 68ch;
+  --blog-shadow: color-mix(in srgb, CanvasText 30%, transparent);
+}
+
+:where(.blog-visually-hidden) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Explicit, so a site's display rules can't show a list the search has hidden. */
+[data-blog-static][hidden],
+.blog-results[hidden] {
+  display: none;
+}
+
+/* ---------- Shared pieces ---------- */
+
+:where(.blog-crumbs) {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: var(--blog-muted);
+}
+:where(.blog-crumbs ol) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.blog-crumbs li + li)::before {
+  content: "/";
+  margin: 0 8px;
+  color: var(--blog-border);
+}
+:where(.blog-crumbs a) {
+  color: var(--blog-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+:where(.blog-crumbs a:hover) {
+  color: var(--blog-accent-hover);
+  text-decoration: underline;
+}
+
+:where(.blog-eyebrow) {
+  margin: 0;
+  color: var(--blog-accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+:where(.blog-lead) {
+  max-width: 680px;
+  margin: 0 0 20px;
+  color: var(--blog-muted);
+  font-size: 17px;
+}
+:where(.blog-meta) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  color: var(--blog-muted);
+  font-size: 14px;
+}
+
+:where(.blog-tags, .blog-topics ul) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.blog-tag) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--blog-border);
+  border-radius: 999px;
+  background: var(--blog-surface);
+  color: var(--blog-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+:where(a.blog-tag:hover, .blog-tag[aria-current="page"]) {
+  border-color: var(--blog-accent);
+  background: var(--blog-accent-tint);
+  color: var(--blog-accent-tint-text);
+}
+:where(.blog-topics .blog-tag) {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+/* ---------- List pages ---------- */
+
+:where(.blog-list-head h1, .blog-post-head h1) {
+  margin: 6px 0 10px;
+  font-family: var(--blog-font-display);
+  font-size: clamp(32px, 5vw, 46px);
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+/* Search field and sort menu. */
+:where(.blog-explorer) {
+  margin: 4px 0 16px;
+}
+:where(.blog-search) {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  max-width: 680px;
+}
+:where(.blog-search-field) {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+:where(.blog-search-icon) {
+  position: absolute;
+  left: 14px;
+  color: var(--blog-muted);
+  pointer-events: none;
+}
+:where(.blog-search input[type="search"]) {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 40px 0 44px;
+  border: 1px solid var(--blog-border);
+  border-radius: 14px;
+  background: var(--blog-surface);
+  color: var(--blog-text);
+  font: inherit;
+  font-size: 16px;
+  appearance: none;
+}
+:where(.blog-search input[type="search"])::-webkit-search-cancel-button {
+  appearance: none;
+}
+:where(.blog-search input[type="search"]:focus) {
+  outline: none;
+  border-color: var(--blog-focus);
+  box-shadow: 0 0 0 3px var(--blog-accent-tint);
+}
+:where(.blog-search-clear) {
+  position: absolute;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--blog-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+:where(.blog-search-clear:hover) {
+  background: var(--blog-muted-bg);
+  color: var(--blog-text);
+}
+:where(.blog-sort select) {
+  height: 100%;
+  min-height: 46px;
+  padding: 0 34px 0 14px;
+  border: 1px solid var(--blog-border);
+  border-radius: 14px;
+  background: var(--blog-surface);
+  color: var(--blog-text);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+:where(.blog-sort[data-pending]) {
+  visibility: hidden;
+}
+
+:where(.blog-topics) {
+  margin: 0 0 28px;
+}
+
+:where(.blog-results-bar) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+}
+:where(.blog-results-count) {
+  margin: 0;
+  font-weight: 600;
+}
+:where(.blog-results-count:empty) {
+  display: none;
+}
+:where(.blog-results-all) {
+  font-weight: 600;
+}
+:where(.blog-results-note) {
+  color: var(--blog-muted);
+}
+:where(.blog-results-empty) {
+  padding: clamp(18px, 4vw, 28px);
+  border: 1px dashed var(--blog-border);
+  border-radius: var(--blog-radius);
+  color: var(--blog-muted);
+}
+:where(.blog-results-empty p) {
+  margin: 0;
+}
+:where(.blog-results-empty-title) {
+  margin-bottom: 4px;
+  color: var(--blog-text);
+  font-weight: 600;
+}
+
+/* Cards. The title's link covers the whole card; tag links sit above it. */
+:where(.blog-cards) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.blog-cards > li) {
+  display: flex;
+}
+:where(.blog-card) {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--blog-border);
+  border-radius: var(--blog-radius);
+  background: var(--blog-surface);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+:where(.blog-card:hover) {
+  border-color: var(--blog-accent);
+  box-shadow: 0 14px 30px -18px var(--blog-shadow);
+  transform: translateY(-2px);
+}
+:where(.blog-card:focus-within) {
+  border-color: var(--blog-focus);
+}
+:where(.blog-card-cover) {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--blog-muted-bg);
+}
+:where(.blog-card-body) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: clamp(18px, 4vw, 24px);
+}
+:where(.blog-card-label) {
+  margin: 0;
+  color: var(--blog-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+:where(.blog-card-title) {
+  margin: 0;
+  font-family: var(--blog-font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+}
+:where(.blog-card-title a) {
+  color: var(--blog-text);
+  text-decoration: none;
+}
+:where(.blog-card-title a)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+:where(.blog-card-title a:focus-visible) {
+  outline: none;
+}
+:where(.blog-card:hover .blog-card-title a) {
+  color: var(--blog-accent);
+}
+:where(.blog-card-description) {
+  margin: 0;
+  color: var(--blog-muted);
+  font-size: 15px;
+}
+:where(.blog-card .blog-meta) {
+  margin-top: auto;
+  padding-top: 4px;
+  font-size: 13px;
+}
+:where(.blog-card .blog-tags) {
+  position: relative;
+  z-index: 1;
+  margin-top: 4px;
+}
+:where(.blog-card .blog-tag) {
+  min-height: 26px;
+  font-size: 12px;
+}
+
+:where(.blog-card.is-featured) {
+  margin-bottom: 16px;
+}
+:where(.blog-card.is-featured .blog-card-title) {
+  font-size: clamp(24px, 4vw, 32px);
+  letter-spacing: -0.8px;
+}
+:where(.blog-card.is-featured .blog-card-description) {
+  max-width: 680px;
+  font-size: 17px;
+}
+@media (min-width: 761px) {
+  :where(.blog-card.is-featured:has(.blog-card-cover)) {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+  :where(.blog-card.is-featured .blog-card-cover) {
+    height: 100%;
+    aspect-ratio: auto;
+  }
+}
+
+/* Numbered pages. Next stays on the right when there's no Previous. */
+:where(.blog-pager) {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  font-weight: 600;
+}
+:where(.blog-pager ol) {
+  display: flex;
+  grid-column: 2;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.blog-pager ol a, .blog-pager ol span) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 8px;
+  border-radius: 10px;
+  color: var(--blog-text);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+:where(.blog-pager ol a:hover) {
+  background: var(--blog-muted-bg);
+}
+:where(.blog-pager [aria-current="page"]) {
+  background: var(--blog-accent-tint);
+  color: var(--blog-accent-tint-text);
+}
+:where(.blog-pager-gap) {
+  color: var(--blog-muted);
+}
+:where(.blog-pager-prev) {
+  grid-column: 1;
+  justify-self: start;
+}
+:where(.blog-pager-next) {
+  grid-column: 3;
+  justify-self: end;
+}
+:where(.blog-pager-prev, .blog-pager-next) {
+  text-decoration: none;
+}
+
+:where(.blog-feeds) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 40px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--blog-border);
+  color: var(--blog-muted);
+  font-size: 14px;
+}
+:where(.blog-feeds a) {
+  font-weight: 600;
+}
+:where(.blog-empty) {
+  color: var(--blog-muted);
+}
+
+/* ---------- Post pages ---------- */
+
+:where(.blog-layout.has-toc) {
+  display: grid;
+  grid-template-columns: minmax(0, 720px) 220px;
+  justify-content: space-between;
+  gap: 48px;
+}
+:where(.blog-post) {
+  min-width: 0;
+}
+:where(.blog-post-head .blog-lead) {
+  margin-bottom: 14px;
+}
+:where(.blog-post-head .blog-tags) {
+  margin-top: 14px;
+}
+:where(.blog-post-cover) {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  margin-top: 28px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--blog-radius);
+  background: var(--blog-muted-bg);
+}
+
+:where(.blog-toc ol) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.blog-toc li) {
+  margin: 0;
+}
+:where(.blog-toc a) {
+  display: block;
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid transparent;
+  color: var(--blog-muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+:where(.blog-toc a:hover) {
+  color: var(--blog-accent);
+}
+:where(.blog-toc a[aria-current]) {
+  border-left-color: var(--blog-accent);
+  color: var(--blog-text);
+  font-weight: 600;
+}
+:where(.blog-toc .blog-toc-3 a) {
+  padding-left: 26px;
+}
+:where(.blog-toc-title, .blog-toc-inline summary) {
+  margin: 0 0 6px;
+  color: var(--blog-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+:where(.blog-toc-side) {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding-top: 8px;
+}
+:where(.blog-toc-inline) {
+  display: none;
+  margin: 24px 0 0;
+  padding: 12px 16px;
+  border: 1px solid var(--blog-border);
+  border-radius: 14px;
+  background: var(--blog-surface);
+}
+:where(.blog-toc-inline summary) {
+  margin: 0;
+  cursor: pointer;
+}
+:where(.blog-toc-inline nav) {
+  margin-top: 8px;
+}
+@media (max-width: 1000px) {
+  :where(.blog-layout.has-toc) {
+    display: block;
+  }
+  :where(.blog-toc-side) {
+    display: none;
+  }
+  :where(.blog-toc-inline) {
+    display: block;
+  }
+}
+
+/* Article body. Element rules use :where() so components inside keep their own styles. */
+:where(.blog-prose) {
+  max-width: var(--blog-measure);
+  margin-top: 32px;
+  font-size: 17px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+:where(.blog-prose) :where(p, ul, ol, blockquote, figure, table, .code-block) {
+  margin: 0 0 20px;
+}
+:where(.blog-prose) :where(h2) {
+  margin: 44px 0 12px;
+  font-family: var(--blog-font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  scroll-margin-top: 16px;
+}
+:where(.blog-prose) :where(h3) {
+  margin: 28px 0 8px;
+  font-size: 18px;
+  line-height: 1.3;
+  scroll-margin-top: 16px;
+}
+:where(.blog-prose) :where(h4) {
+  margin: 20px 0 6px;
+  font-size: 16px;
+}
+:where(.blog-prose .heading-anchor) {
+  margin-left: 6px;
+  color: var(--blog-border);
+  font-weight: 400;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+:where(.blog-prose) :is(h2, h3, h4):hover .heading-anchor {
+  opacity: 1;
+  color: var(--blog-muted);
+}
+:where(.blog-prose) :where(ul, ol) {
+  padding-left: 24px;
+}
+:where(.blog-prose) :where(li) {
+  margin: 0 0 6px;
+}
+:where(.blog-prose) :where(blockquote) {
+  padding: 2px 0 2px 18px;
+  border-left: 3px solid var(--blog-border);
+  color: var(--blog-muted);
+}
+:where(.blog-prose) :where(hr) {
+  margin: 40px 0;
+  border: 0;
+  border-top: 1px solid var(--blog-border);
+}
+:where(.blog-prose) :where(code) {
+  font-family: var(--blog-font-mono);
+  font-size: 0.88em;
+}
+:where(.blog-prose) :where(:not(pre) > code) {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--blog-muted-bg);
+  overflow-wrap: anywhere;
+}
+:where(.blog-prose) :where(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+:where(.blog-prose) :where(figure) {
+  margin-left: 0;
+  margin-right: 0;
+}
+:where(.blog-prose) :where(figcaption) {
+  margin-top: 8px;
+  color: var(--blog-muted);
+  font-size: 14px;
+}
+:where(.blog-prose) :where(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+:where(.blog-prose) :where(th, td) {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--blog-border);
+  text-align: left;
+  vertical-align: top;
+}
+:where(.blog-prose) :where(th) {
+  color: var(--blog-muted);
+  font-weight: 600;
+}
+
+/* Code blocks, with the copy button the runtime adds. */
+:where(.code-block) {
+  position: relative;
+}
+:where(.code-block pre) {
+  margin: 0;
+  padding: 16px 18px;
+  overflow-x: auto;
+  border: 1px solid var(--blog-code-border);
+  border-radius: 14px;
+  background: var(--blog-code-bg);
+  color: var(--blog-code-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+:where(.code-block pre code) {
+  font-size: inherit;
+}
+:where(.code-copy) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--blog-code-border);
+  border-radius: 8px;
+  background: var(--blog-code-bg);
+  color: var(--blog-code-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+:where(.code-block:hover .code-copy, .code-copy:focus-visible, .code-copy[data-copied]) {
+  opacity: 1;
+}
+@media (hover: none) {
+  :where(.code-copy) {
+    opacity: 1;
+  }
+}
+
+/* ::: note / ::: tip / ::: warning */
+:where(.callout) {
+  margin: 0 0 20px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--blog-muted-bg);
+}
+:where(.callout > :last-child) {
+  margin-bottom: 0;
+}
+:where(.callout-title) {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+:where(.callout-tip) {
+  background: var(--blog-accent-tint);
+}
+:where(.callout-tip .callout-title) {
+  color: var(--blog-accent-tint-text);
+}
+:where(.callout-warning) {
+  background: var(--blog-warning-tint);
+}
+:where(.callout-warning .callout-title) {
+  color: var(--blog-warning);
+}
+
+/* End of a post: the site's call to action, share links, series, related posts. */
+:where(.blog-post-end) {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  max-width: var(--blog-measure);
+  margin-top: 48px;
+}
+:where(.blog-share) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding-top: 20px;
+  border-top: 1px solid var(--blog-border);
+}
+:where(.blog-share-title) {
+  margin: 0;
+  color: var(--blog-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+:where(.blog-share ul) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.blog-share-link, .blog-share-copy) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--blog-border);
+  border-radius: 999px;
+  background: var(--blog-surface);
+  color: var(--blog-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+:where(.blog-share-link:hover, .blog-share-copy:hover, .blog-share-copy[data-copied]) {
+  border-color: var(--blog-accent);
+  background: var(--blog-accent-tint);
+  color: var(--blog-accent-tint-text);
+}
+:where(.blog-series) {
+  padding: 18px 20px;
+  border: 1px solid var(--blog-border);
+  border-radius: var(--blog-radius);
+}
+:where(.blog-series-title) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+:where(.blog-series-title span) {
+  color: var(--blog-muted);
+  font-weight: 500;
+  font-size: 14px;
+}
+:where(.blog-series ol) {
+  margin: 0;
+  padding-left: 22px;
+}
+:where(.blog-series li) {
+  margin: 4px 0;
+}
+:where(.blog-series [aria-current]) {
+  font-weight: 600;
+}
+:where(.blog-related h2) {
+  margin: 0 0 14px;
+  font-family: var(--blog-font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+:where(.blog-related .blog-cards) {
+  grid-template-columns: minmax(0, 1fr);
+}
+:where(.blog-post-nav) {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+:where(.blog-post-nav a) {
+  display: flex;
+  flex-direction: column;
+  max-width: 48%;
+  font-weight: 600;
+}
+:where(.blog-post-nav span) {
+  color: var(--blog-muted);
+  font-weight: 400;
+  font-size: 14px;
+}
+:where(.blog-post-nav-older) {
+  margin-left: auto;
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  :where(.blog-cards) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  :where(.blog-prose) {
+    font-size: 16px;
+  }
+  :where(.blog-sort select) {
+    max-width: 136px;
+    padding-right: 28px;
+    font-size: 14px;
+  }
+  :where(.blog-pager) {
+    grid-template-columns: 1fr 1fr;
+  }
+  :where(.blog-pager ol) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-content: center;
+  }
+  :where(.blog-pager-next) {
+    grid-column: 2;
+  }
+  :where(.blog-post-nav) {
+    flex-direction: column;
+  }
+  :where(.blog-post-nav a) {
+    max-width: none;
+  }
+  :where(.blog-post-nav-older) {
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.blog-card, .blog-tag) {
+    transition: none;
+  }
+  :where(.blog-card:hover) {
+    transform: none;
+  }
+}

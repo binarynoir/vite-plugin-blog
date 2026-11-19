@@ -1,4 +1,18 @@
 import type { MarkdownIt } from "markdown-it";
+import type { BlogCrumb } from "./shared/markup.js";
+import type { BlogLabels, BlogPostSummary, BlogTagInfo } from "./shared/types.js";
+
+export type {
+  BlogClientConfig,
+  BlogLabels,
+  BlogPostSummary,
+  BlogSearchIndex,
+  BlogSearchPost,
+  BlogSiteInfo,
+  BlogSort,
+  BlogTagInfo,
+} from "./shared/types.js";
+export type { BlogCrumb } from "./shared/markup.js";
 
 /** A tag a post may use, from the `tags` option or `tags.yml`. */
 export interface BlogTag {
@@ -72,6 +86,8 @@ export interface BlogPost {
   cover?: string;
   /** The cover image's absolute URL, for social cards and feeds, when the `site` option is set. */
   coverUrl?: string;
+  /** The cover image's address from any page (a site path or a URL), for cards in lists. */
+  coverPath?: string;
   /** Local images the post shows, as absolute paths. */
   images: string[];
   /** Set when the post is in the announcement banner. */
@@ -125,34 +141,8 @@ export interface BlogListPage {
   /** The previous and next pages' paths, when the list has more than one page. */
   previousUrl?: string;
   nextUrl?: string;
-}
-
-/** The words the default markup writes, for translating. `{n}` is a number. */
-export interface BlogLabels {
-  /** Reading time: "{n} min read". */
-  readingTime: string;
-  /** Before an updated date: "Updated". */
-  updated: string;
-  /** Before the authors: "By". */
-  by: string;
-  onThisPage: string;
-  newer: string;
-  older: string;
-  /** The index's heading when the `index` option has no title. */
-  blog: string;
-  tags: string;
-  noPosts: string;
-  previous: string;
-  next: string;
-  /** "Page {n} of {count}". */
-  pageOf: string;
-  /** The accessible name of the banner, and the announcements page's heading. */
-  announcement: string;
-  announcements: string;
-  /** The banner's count badge: "{n} announcements". */
-  announcementCount: string;
-  /** The banner's close button. */
-  dismiss: string;
+  /** Every page's path, in order: `pageUrls[0]` is page 1. */
+  pageUrls: string[];
 }
 
 /** Helpers passed to the page renderers. */
@@ -175,21 +165,80 @@ export interface BlogRenderHelpers {
   usedTags: string[];
   /** The listed posts before and after this one, by date. */
   adjacent: (post: BlogPost) => { newer?: BlogPost; older?: BlogPost };
+  /** Up to `limit` listed posts sharing the most tags with this one, newest first among equals. */
+  related: (post: BlogPost, limit?: number) => BlogPost[];
+  /** The post's series, oldest first, and where the post is in it. `undefined` outside a series. */
+  series: (post: BlogPost) => { posts: BlogPost[]; index: number } | undefined;
+  /** A post as the client sees it (`virtual:blog/posts`, cards): no HTML, dates preformatted. */
+  summary: (post: BlogPost) => BlogPostSummary;
+  /** Tags with a name and, when they have a page, its `url`. */
+  tagInfo: Record<string, BlogTagInfo>;
+  /** The trail above a post or list page, without the page itself for a post. */
+  breadcrumbs: (target: BlogPost | BlogListPage) => BlogCrumb[];
+  /** The site's name, from the `siteName` option. */
+  siteName?: string;
+  /** `search.json`'s path, when search is on. */
+  searchUrl?: string;
   /** A `<nav>` list of the headings, or `''` when there are fewer than two. */
   renderToc: (toc: BlogTocEntry[]) => string;
+  /** A breadcrumb `<nav>`. */
+  renderBreadcrumbs: (items: BlogCrumb[]) => string;
+  /** A post as a card. */
+  renderCard: (
+    post: BlogPost,
+    options?: { headingLevel?: 2 | 3 | 4; label?: string | false; featured?: boolean },
+  ) => string;
+  /** Numbered page links for a list, or `''` for one page. */
+  renderPager: (page: BlogListPage) => string;
+  /** The share links and "Copy link" button, or `''` without `site` or with `share: false`. */
+  renderShare: (post: BlogPost) => string;
+  /** The post's series, or `''`. */
+  renderSeries: (post: BlogPost) => string;
+  /** Related posts as cards, or `''`. */
+  renderRelated: (post: BlogPost) => string;
+  /** The topic filter: "All posts" and a link per tag page. */
+  renderTopics: (page?: BlogListPage) => string;
+  /** The search form the Vue explorer mounts over, or `''` with search off. */
+  renderSearch: (page: BlogListPage) => string;
+  /** "Subscribe: RSS · Atom · JSON Feed", or `''` without feeds. */
+  renderFeedList: () => string;
+  /** The `#blog-config` JSON the client entries read. */
+  renderClientConfig: (page?: BlogListPage) => string;
   /** The default `<head>` tags for a post. */
   renderHead: (post: BlogPost) => string;
-  /** The default article markup for a post. */
-  renderArticle: (post: BlogPost) => string;
+  /**
+   * The default article markup for a post. `parts.end` goes first in the
+   * article's footer (a call to action), `parts.beforeBody` between the header
+   * and the body.
+   */
+  renderArticle: (post: BlogPost, parts?: { beforeBody?: string; end?: string }) => string;
   /** The default `<head>` tags for a list page. */
   renderListHead: (page: BlogListPage) => string;
-  /** The default markup for a list page. */
-  renderList: (page: BlogListPage) => string;
+  /**
+   * The default markup for a list page. `parts` replaces the eyebrow or lead
+   * line, or adds markup after the list.
+   */
+  renderList: (
+    page: BlogListPage,
+    parts?: { eyebrow?: string; lead?: string; end?: string },
+  ) => string;
   /** `<link rel="alternate">` tags for the feeds, or `''` without any. */
   renderFeedLinks: () => string;
   tags: Record<string, BlogTag>;
   /** Every listed post, newest first. */
   posts: BlogPost[];
+}
+
+/** Where the share links go. */
+export type BlogShareNetwork =
+  "linkedin" | "bluesky" | "x" | "hackernews" | "reddit" | "mastodon" | "email";
+
+/** `{base}search.json` and the explorer's settings. */
+export interface BlogSearchOptions {
+  /** Most characters of each article's text in the index. `0` indexes titles, descriptions, tags and headings only. Default 3000. */
+  text?: number;
+  /** Results per page. Default 12. */
+  pageSize?: number;
 }
 
 /** One problem with a post, reported by file. */
@@ -214,6 +263,11 @@ export interface BlogFeedOptions {
   description?: string;
   /** Put each post's whole article in the feeds, not only its description. Default `true`. */
   content?: boolean;
+  /**
+   * Which pages link the feeds from `<head>`, so browsers and feed readers find
+   * them. `"blog"` (the default): the blog's pages. `"site"`: every page Vite builds.
+   */
+  discovery?: "blog" | "site";
 }
 
 /** The banner across the top of every page for posts marked `announcement`. */
@@ -262,16 +316,42 @@ export interface BlogOptions {
   locale?: string;
   /** Default 230. */
   wordsPerMinute?: number;
-  /** Added after the title in `<title>`: `" · Example"`. Default `''`. */
+  /** Added after a post's title in `<title>`: `" · Example Blog"`. Default `''`. */
   titleSuffix?: string;
-  /** The index's heading and description. Default `{ title: labels.blog, description: "" }`. */
-  index?: { title?: string; description?: string };
+  /**
+   * The site's name: `og:site_name`, the publisher in structured data, and the
+   * end of list pages' titles ("DNS · Blog · Example"). Without it, list pages
+   * use `titleSuffix` too.
+   */
+  siteName?: string;
+  /**
+   * A social card image for list pages and for posts without a cover: a site
+   * path (`/og.png`) or a URL. Needs `site` for a path.
+   */
+  image?: string;
+  /**
+   * The index's heading, description and eyebrow (the small line above the
+   * heading). Default `{ title: labels.blog, description: "", eyebrow: siteName }`.
+   */
+  index?: { title?: string; description?: string; eyebrow?: string };
   /** Write a page per tag at `{base}tag/{tag}/`. Default `true`. */
   tagPages?: boolean;
   /** Posts per list page; later pages are at `.../page/2/`. `0` puts every post on one page. Default 0. */
   pageSize?: number;
   /** Feeds, or `false` for none. Default: all three, when `site` is set. */
   feeds?: false | BlogFeedOptions;
+  /** `{base}search.json` for the search on list pages, or `false` for none. Default on. */
+  search?: false | BlogSearchOptions;
+  /** How many posts `virtual:blog/latest` exports. Default 6. */
+  latest?: number;
+  /**
+   * Share links at the end of each post (they need `site`), or `false` for none.
+   * Plain links: no scripts, no tracking, nothing loads from the networks.
+   * Default `["linkedin", "bluesky", "x", "hackernews", "reddit", "email"]`.
+   */
+  share?: false | { networks?: BlogShareNetwork[]; mastodon?: string };
+  /** Most related posts at the end of a post. `0` for none. Default 3. */
+  related?: number;
   /** A sitemap of the blog's pages at `{base}sitemap.xml`. Default `true`, when `site` is set. */
   sitemap?: boolean;
   /** The announcement banner, or `false` for none. Default: on, when a post is an announcement. */

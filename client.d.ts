@@ -2,27 +2,32 @@
 // ["@binarynoir/vite-plugin-blog/client"], or reference it from a .d.ts file.
 
 declare module "virtual:blog/posts" {
-  export interface BlogPostSummary {
-    slug: string;
-    /** `/blog/vpn-leaks/` */
-    url: string;
-    title: string;
-    description: string;
-    /** ISO 8601 */
-    date: string;
-    updated?: string;
-    tags: string[];
-    authors: { name: string; url?: string }[];
-    /** Kept at the top of lists. */
-    pinned: boolean;
-    featured: boolean;
-    series?: string;
-    readingMinutes: number;
-    /** Front matter as written, including fields the plugin doesn't know. */
-    data: Record<string, unknown>;
-  }
+  import type {
+    BlogPostSummary,
+    BlogSiteInfo,
+    BlogTagInfo,
+  } from "@binarynoir/vite-plugin-blog/runtime";
+  export type { BlogPostSummary, BlogSiteInfo, BlogTagInfo };
   /** Listed posts (published, not unlisted), newest first. */
   export const posts: BlogPostSummary[];
+  /** Every tag, with its name and, when it has a page, its `url`. */
+  export const tags: Record<string, BlogTagInfo>;
+  /** The blog's address, title, feeds, search index and labels. */
+  export const blog: BlogSiteInfo;
+  export default posts;
+}
+
+declare module "virtual:blog/latest" {
+  import type {
+    BlogPostSummary,
+    BlogSiteInfo,
+    BlogTagInfo,
+  } from "@binarynoir/vite-plugin-blog/runtime";
+  export type { BlogPostSummary, BlogSiteInfo, BlogTagInfo };
+  /** The newest listed posts: `latest` of them (default 6). Smaller than `virtual:blog/posts`, for a home page. */
+  export const posts: BlogPostSummary[];
+  export const tags: Record<string, BlogTagInfo>;
+  export const blog: BlogSiteInfo;
   export default posts;
 }
 

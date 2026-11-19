@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The default markup uses `blog-*` class names throughout, so it can't collide with a site's own (`.card`, `.tag`, `.prose`). For example: `post` is now `blog-post`, `prose` is `blog-prose`, `toc` is `blog-toc`, and `post-list` is `blog-list`. The README lists every class. Classes inside posts (`code-block`, `callout`, `heading-anchor`) are unchanged.
+- List pages show posts as cards (`blog-card`), with the first page of the index featuring a `featured: true` post or else the newest. The pager is numbered.
+- List pages' titles end with `siteName` when it's set ("DNS · Blog · Example"); otherwise with `titleSuffix`, as before.
+- Tag pages without a description in `tags.yml` get one from the `tagDescription` label.
+- `virtual:blog/posts` no longer includes authors' emails, and each post carries `dateText`, `dateTime` and `cover` for cards.
+- A tag entry in `tags.yml` with unknown fields fails the build. This catches descriptions cut short by unquoted commas in `{ name: …, description: … }`.
+
+### Added
+
+- **Search.** `{base}search.json` holds every listed post's summary, headings and text (up to `search.text` characters, default 3000). List pages carry a search form. The `/vue` explorer ranks results, sorts and pages them, keeps its state in the address, and loads the index only when the field is first used. Turn it off with `search: false`.
+- **Topics:** list pages link "All posts" and each tag page, with the current one marked.
+- **Breadcrumbs** on posts and on tag, announcement and later list pages, with `BreadcrumbList` structured data from the site's home.
+- **Structured data and social cards:** `Blog` on the index and `CollectionPage` on tag pages, plus `publisher`, `isPartOf` and `articleSection` on posts. `siteName` and `image` options set `og:site_name` and a fallback share card.
+- **End of post:** share links (`share`, no scripts or tracking) and a "Copy link" button, the whole series with the current part marked, and related posts by shared tags (`related`, default 3). Newer and older links show only when there's neither series nor related posts. `renderArticle(post, { end })` adds your own call to action first.
+- **Feed links** on every list page ("Subscribe: RSS · Atom · JSON Feed"), and `feeds.discovery: "site"` to link the feeds from every page's `<head>`.
+- `virtual:blog/latest`, the newest `latest` posts (default 6), for a home page. Both virtual modules also export `tags` and `blog` (index address, feeds, labels).
+- `@binarynoir/vite-plugin-blog/runtime`: framework-free search, sorting, paging and address-state functions, the shared markup as element trees, and `enhanceBlogPage()` (code copy buttons, "Copy link", and a highlight on the contents link for the section being read).
+- `@binarynoir/vite-plugin-blog/vue`: `BlogPostCard`, `BlogPostList`, `BlogPager`, `BlogExplorer` and `mountBlogExplorer()`. They render the same markup as the static pages. `vue` is an optional peer dependency.
+- `@binarynoir/vite-plugin-blog/styles.css`: default styles for all of it, themed with `--blog-*` custom properties, at zero specificity.
+- Helpers: `related`, `series`, `summary`, `tagInfo`, `breadcrumbs`, `siteName`, `searchUrl`, `renderBreadcrumbs`, `renderCard`, `renderPager`, `renderShare`, `renderSeries`, `renderRelated`, `renderTopics`, `renderSearch`, `renderFeedList` and `renderClientConfig`. List pages have `pageUrls`, and posts have `coverPath`.
+- New labels for all of the above, and `htmlToText` is exported.
+
 ## [0.3.0] - 2026-11-19
 
 ### Changed

@@ -66,7 +66,10 @@ describe("build", () => {
     expect(html).toContain("<figcaption>The dot, <em>captioned</em></figcaption>");
     expect(html).toContain('<aside class="callout callout-tip">');
     expect(html).toContain('<p class="callout-title">Good to know</p>');
-    expect(html).toContain('<nav class="toc" aria-label="On this page">');
+    expect(html).toContain('<aside class="blog-toc blog-toc-side"><nav aria-label="On this page">');
+    expect(html).toContain(
+      '<details class="blog-toc blog-toc-inline"><summary>On this page</summary>',
+    );
 
     const css = readdirSync(path.join(outDir, "assets"))
       .filter((file) => file.endsWith(".css"))
@@ -82,23 +85,28 @@ describe("build", () => {
     const index = read(outDir, "blog/index.html");
     expect(index).toContain("<title>Blog · Example</title>");
     expect(index).toContain('<link rel="canonical" href="https://example.com/blog/">');
-    expect(index).toContain('<p class="post-list-description">Notes on DNS.</p>');
+    expect(index).toContain('<p class="blog-lead">Notes on DNS.</p>');
     expect(index).not.toContain("/src/post.ts");
     expect(index.indexOf("/blog/hello/")).toBeLessThan(index.indexOf("/blog/later/"));
     expect(index).not.toContain("/blog/draft-post/");
-    expect(index).toContain('<li><a href="/blog/tag/dns/">DNS</a></li>');
+    expect(index).toContain('<li><a class="blog-tag" href="/blog/tag/dns/">DNS</a></li>');
+    expect(index).toContain('<a class="blog-tag" href="/blog/" aria-current="page">All posts</a>');
 
     const dns = read(outDir, "blog/tag/dns/index.html");
     expect(dns).toContain("<title>DNS · Blog · Example</title>");
     expect(dns).toContain('<meta name="description" content="Records and resolvers.">');
-    expect(dns).toContain('<a href="/blog/tag/dns/" aria-current="page">DNS</a>');
+    expect(dns).toContain('<a class="blog-tag" href="/blog/tag/dns/" aria-current="page">DNS</a>');
+    // A breadcrumb back to the index, with the tag as the current page.
+    expect(dns).toContain(
+      '<nav class="blog-crumbs" aria-label="Breadcrumb"><ol><li><a href="/blog/">Blog</a></li><li><span aria-current="page">DNS</span></li></ol></nav>',
+    );
     expect(dns).toContain("/blog/hello/");
     expect(dns).not.toContain('href="/blog/later/"');
     expect(existsSync(path.join(outDir, "blog/tag/homelab/index.html"))).toBe(true);
 
     // Posts link their tags to the tag pages.
     expect(read(outDir, "blog/hello/index.html")).toContain(
-      '<li class="tag"><a href="/blog/tag/dns/">DNS</a></li>',
+      '<li><a class="blog-tag" href="/blog/tag/dns/">DNS</a></li>',
     );
   });
 
@@ -107,7 +115,9 @@ describe("build", () => {
     await build(inline);
     expect(existsSync(path.join(outDir, "blog/index.html"))).toBe(true);
     expect(existsSync(path.join(outDir, "blog/tag"))).toBe(false);
-    expect(read(outDir, "blog/hello/index.html")).toContain('<li class="tag">DNS</li>');
+    expect(read(outDir, "blog/hello/index.html")).toContain(
+      '<li><span class="blog-tag">DNS</span></li>',
+    );
   });
 
   it("exports published posts from virtual:blog/posts, newest first", async () => {

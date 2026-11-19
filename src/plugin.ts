@@ -33,18 +33,23 @@ import {
   enabledFeeds,
   FEED_FILES,
   listPages,
-  postSummaries,
   renderListPage,
   renderPostPage,
+  SEARCH_FILE,
+  searchEnabled,
+  siteInfo,
   SITEMAP_FILE,
   sitemapEnabled,
 } from "./pages.js";
+import { buildSearchIndex } from "./search-index.js";
 import type { BlogListPage, BlogOptions, BlogPost } from "./types.js";
 import { joinUrl } from "./util.js";
 
 const POSTS_ID = "virtual:blog/posts";
+const LATEST_ID = "virtual:blog/latest";
 const CSS_ID = "virtual:blog/code.css";
 const RESOLVED_POSTS_ID = "\0virtual:blog/posts";
+const RESOLVED_LATEST_ID = "\0virtual:blog/latest";
 // Not `\0`-prefixed: Vite's CSS plugin only handles ids that look like CSS files.
 const RESOLVED_CSS_ID = "/__vite-plugin-blog/code.css";
 /** Where dev serves the banner's files. The build writes them to hashed names instead. */
@@ -176,6 +181,14 @@ export function blogPlugin(userOptions: BlogOptions): Plugin {
         });
       }
     }
+    if (searchEnabled(options)) {
+      const text = options.search === false ? 0 : (options.search?.text ?? 3000);
+      const index = buildSearchIndex(content.listed, createHelpers(options, content), text);
+      files.set(`${prefix}${SEARCH_FILE}`, {
+        source: JSON.stringify(index),
+        type: "application/json; charset=utf-8",
+      });
+    }
     if (sitemapEnabled(options)) {
       const absolute = (sitePath: string) =>
         joinUrl(options.site!, joinUrl(options.siteBase, sitePath));
@@ -255,14 +268,26 @@ export function blogPlugin(userOptions: BlogOptions): Plugin {
 
     resolveId(id) {
       if (id === POSTS_ID) return RESOLVED_POSTS_ID;
+      if (id === LATEST_ID) return RESOLVED_LATEST_ID;
       if (id === CSS_ID) return RESOLVED_CSS_ID;
       if (pageIds.has(id)) return id;
       return null;
     },
 
     load(id) {
-      if (id === RESOLVED_POSTS_ID) {
-        return `export const posts = ${JSON.stringify(postSummaries(content.listed))};\nexport default posts;\n`;
+      if (id === RESOLVED_POSTS_ID || id === RESOLVED_LATEST_ID) {
+        const helpers = createHelpers(options, content);
+        const listed =
+          id === RESOLVED_LATEST_ID
+            ? content.listed.slice(0, Math.max(0, options.latest ?? 6))
+            : content.listed;
+        return [
+          `export const posts = ${JSON.stringify(listed.map(helpers.summary))};`,
+          `export const tags = ${JSON.stringify(helpers.tagInfo)};`,
+          `export const blog = ${JSON.stringify(siteInfo(options, helpers))};`,
+          "export default posts;",
+          "",
+        ].join("\n");
       }
       if (id === RESOLVED_CSS_ID) return content.css;
       const page = pageIds.get(id);
@@ -273,10 +298,21 @@ export function blogPlugin(userOptions: BlogOptions): Plugin {
     transformIndexHtml: {
       // After Vite has processed the page, so it leaves the banner's plain script tag alone.
       order: "post",
-      handler(html, context) {
+      handler(source, context) {
+        let html = source;
+        // Feed links on the site's other pages too; blog pages have them already.
+        const sitePath = pagePath(context.path);
+        if (
+          options.feeds &&
+          options.feeds.discovery === "site" &&
+          !sitePath.startsWith(options.base)
+        ) {
+          const links = createHelpers(options, content).renderFeedLinks();
+          if (links) html = html.replace(/<\/head>/i, () => `  ${links}\n  </head>`);
+        }
         if (!bannerEnabled()) return html;
         const settings = options.announcements || {};
-        if (settings.include && !settings.include(pagePath(context.path))) return html;
+        if (settings.include && !settings.include(sitePath)) return html;
         const newest = content.announcements[0]!;
         const attributes: Record<string, string> = {
           "data-blog-announcement": announcementId(newest),
@@ -328,7 +364,7 @@ export function blogPlugin(userOptions: BlogOptions): Plugin {
       const reload = async (file: string) => {
         if (!isBlogFile(options, file) && !content.files.includes(file)) return;
         content = await load();
-        for (const id of [RESOLVED_POSTS_ID, RESOLVED_CSS_ID]) {
+        for (const id of [RESOLVED_POSTS_ID, RESOLVED_LATEST_ID, RESOLVED_CSS_ID]) {
           const module = server.moduleGraph.getModuleById(id);
           if (module) server.moduleGraph.invalidateModule(module);
         }

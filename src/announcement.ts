@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { BlogContent, ResolvedBlogOptions } from "./content.js";
-import { fillLabel } from "./pages.js";
+import { fillLabel } from "./shared/html.js";
 import type { BlogPost } from "./types.js";
 import { escapeHtml, joinUrl } from "./util.js";
 

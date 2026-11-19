@@ -7,6 +7,7 @@ import { parsePostDate, resolveTimeZone } from "./dates.js";
 import { createCodeHighlighter, type CodeHighlighter } from "./highlight.js";
 import { countWords, createMarkdown, fenceLanguages, type RenderEnv } from "./markdown.js";
 import { checkLinks } from "./pages.js";
+import { DEFAULT_LABELS } from "./shared/labels.js";
 import type {
   BlogAnnouncement,
   BlogAuthor,
@@ -37,24 +38,7 @@ export interface ResolvedBlogOptions extends BlogOptions {
   pageSize: number;
 }
 
-export const DEFAULT_LABELS: BlogLabels = {
-  readingTime: "{n} min read",
-  updated: "Updated",
-  by: "By",
-  onThisPage: "On this page",
-  newer: "Newer post",
-  older: "Older post",
-  blog: "Blog",
-  tags: "Tags",
-  noPosts: "No posts yet.",
-  previous: "Previous",
-  next: "Next",
-  pageOf: "Page {n} of {count}",
-  announcement: "Announcement",
-  announcements: "Announcements",
-  announcementCount: "{n} announcements",
-  dismiss: "Dismiss",
-};
+export { DEFAULT_LABELS };
 
 /** A local file the build copies to a fixed address, for absolute URLs in social cards and feeds. */
 export interface BlogAssetCopy {
@@ -127,6 +111,15 @@ function readTags(options: ResolvedBlogOptions, issues: BlogIssue[], files: stri
   const tags: Record<string, BlogTag> = {};
   for (const [id, value] of Object.entries(data)) {
     const record = toRecord(value);
+    // `{ name: Email, description: SPF, DKIM and DMARC }` parses as fields `DKIM and
+    // DMARC`: commas split a flow mapping. Say so, rather than cutting the text short.
+    const unknown = Object.keys(record).filter((key) => key !== "name" && key !== "description");
+    if (unknown.length) {
+      issues.push({
+        file,
+        message: `tag "${id}" has unknown field${unknown.length > 1 ? "s" : ""} ${unknown.map((key) => `"${key}"`).join(", ")}. If they're part of a description with commas, quote it or write the tag on separate lines`,
+      });
+    }
     tags[id] = {
       name: toText(record.name) || id,
       description: toText(record.description) || undefined,
@@ -355,12 +348,13 @@ export function createLoader(
       // an absolute URL before Vite has named the bundled file.
       let cover: string | undefined;
       let coverUrl: string | undefined;
+      let coverPath: string | undefined;
       const coverValue = toText(data.cover);
       if (coverValue) {
         const coverFile = path.resolve(path.dirname(file), coverValue);
-        if (/^[a-z]+:/i.test(coverValue)) cover = coverUrl = coverValue;
+        if (/^[a-z]+:/i.test(coverValue)) cover = coverUrl = coverPath = coverValue;
         else if (coverValue.startsWith("/")) {
-          cover = coverValue;
+          cover = coverPath = coverValue;
           if (options.site) coverUrl = joinUrl(options.site, joinUrl(options.siteBase, coverValue));
         } else if (!existsSync(coverFile)) report(`cover "${coverValue}" doesn't exist`);
         else {
@@ -369,6 +363,7 @@ export function createLoader(
           const extension = path.extname(coverFile);
           const fileName = `${options.base.slice(1)}images/${path.basename(coverFile, extension)}-${shortHash(coverFile)}${extension}`;
           copies.push({ file: coverFile, fileName });
+          coverPath = joinUrl(options.siteBase, fileName);
           if (options.site) coverUrl = joinUrl(options.site, joinUrl(options.siteBase, fileName));
         }
       }
@@ -417,6 +412,7 @@ export function createLoader(
         series: toText(data.series) || undefined,
         cover,
         coverUrl,
+        coverPath,
         announcement: readAnnouncement(data.announcement, title, options.timeZone, report),
         data,
         html,
