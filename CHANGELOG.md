@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-19
+
 ### Added
 
 - **Subscribe dialog.** A click on a link to one of the feeds opens a dialog where readers pick RSS, Atom or JSON Feed (with a line on each, and the choice remembered), copy the address, open it in a feed reader app, view the feed, or read "What is a feed?". It closes on Esc, the close button or a click outside, and returns focus. `enhanceBlogPage()` turns it on (`subscribe: false` to opt out); `enhanceFeedLinks()`, `openSubscribeDialog()`, `renderSubscribeDialog()`, `feedLinks()` and `findFeed()` in `/runtime` use it anywhere on a site.
