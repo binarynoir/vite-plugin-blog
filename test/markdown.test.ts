@@ -83,6 +83,24 @@ describe("checks", () => {
     ]);
   });
 
+  it("checks links to the index and tag pages", async () => {
+    site({
+      a: post(
+        "[all](/blog/) [dns](/blog/tag/dns/) [none](/blog/tag/email/) [deep](/blog/a/b/)",
+        "tags: [dns]\n",
+      ),
+    });
+    const { issues } = await load();
+    expect(issues.map((issue) => issue.message)).toEqual([
+      'line 8: link to /blog/tag/email/ goes nowhere: no published post has the tag "email"',
+      "line 8: link to /blog/a/b/ goes nowhere",
+    ]);
+    const off = await load({ tagPages: false });
+    expect(off.issues.map((issue) => issue.message)).toContain(
+      'line 8: link to /blog/tag/dns/ goes nowhere: no published post has the tag "dns"',
+    );
+  });
+
   it("runs the site's own checks", async () => {
     site({ a: post("Hi.", "tools: [nope]\n") });
     const { issues } = await load({

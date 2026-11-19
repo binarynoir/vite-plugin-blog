@@ -72,6 +72,41 @@ describe("build", () => {
     expect(read(outDir, `assets/${css}`)).toMatch(/\.sk-[\w-]+\{?/);
   });
 
+  it("writes the index and a page per used tag, listing published posts newest first", async () => {
+    const { outDir, ...inline } = config({ index: { description: "Notes on DNS." } });
+    await build(inline);
+
+    const index = read(outDir, "blog/index.html");
+    expect(index).toContain("<title>Blog · Example</title>");
+    expect(index).toContain('<link rel="canonical" href="https://example.com/blog/">');
+    expect(index).toContain('<p class="post-list-description">Notes on DNS.</p>');
+    expect(index).not.toContain("/src/post.ts");
+    expect(index.indexOf("/blog/hello/")).toBeLessThan(index.indexOf("/blog/later/"));
+    expect(index).not.toContain("/blog/draft-post/");
+    expect(index).toContain('<li><a href="/blog/tag/dns/">DNS</a></li>');
+
+    const dns = read(outDir, "blog/tag/dns/index.html");
+    expect(dns).toContain("<title>DNS · Blog · Example</title>");
+    expect(dns).toContain('<meta name="description" content="Records and resolvers.">');
+    expect(dns).toContain('<a href="/blog/tag/dns/" aria-current="page">DNS</a>');
+    expect(dns).toContain("/blog/hello/");
+    expect(dns).not.toContain('href="/blog/later/"');
+    expect(existsSync(path.join(outDir, "blog/tag/homelab/index.html"))).toBe(true);
+
+    // Posts link their tags to the tag pages.
+    expect(read(outDir, "blog/hello/index.html")).toContain(
+      '<li class="tag"><a href="/blog/tag/dns/">DNS</a></li>',
+    );
+  });
+
+  it("writes no tag pages with tagPages: false", async () => {
+    const { outDir, ...inline } = config({ tagPages: false });
+    await build(inline);
+    expect(existsSync(path.join(outDir, "blog/index.html"))).toBe(true);
+    expect(existsSync(path.join(outDir, "blog/tag"))).toBe(false);
+    expect(read(outDir, "blog/hello/index.html")).toContain('<li class="tag">DNS</li>');
+  });
+
   it("exports published posts from virtual:blog/posts, newest first", async () => {
     const { outDir, ...inline } = config();
     await build(inline);
@@ -115,6 +150,14 @@ describe("build", () => {
       expect(html).toContain("<title>Hello DNS · Example</title>");
       expect(html).toContain("/@vite/client");
       expect(html).toMatch(/src="\/@fs\/[^"]+\/dot\.png"/);
+
+      const index = await fetch(`${base}/blog/`).then((r) => r.text());
+      expect(index).toContain("<title>Blog · Example</title>");
+      const tag = await fetch(`${base}/blog/tag/dns/`).then((r) => r.text());
+      expect(tag).toContain("<title>DNS · Blog · Example</title>");
+      const toIndex = await fetch(`${base}/blog`, { redirect: "manual" });
+      expect(toIndex.status).toBe(301);
+      expect(toIndex.headers.get("location")).toBe("/blog/");
 
       const redirect = await fetch(`${base}/blog/hello`, { redirect: "manual" });
       expect(redirect.status).toBe(301);

@@ -7,6 +7,7 @@ export type {
   BlogOptions,
   Directive,
   DirectiveContext,
+  ListPage,
   Post,
   PostSource,
   RenderHelpers,

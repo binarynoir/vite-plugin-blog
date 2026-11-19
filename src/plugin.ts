@@ -10,8 +10,15 @@ import {
   type BlogContent,
   type ResolvedBlogOptions,
 } from "./content.js";
-import { CONTENT_MARKER, createHelpers, postSummaries, renderPostPage } from "./pages.js";
-import type { BlogOptions, Post } from "./types.js";
+import {
+  CONTENT_MARKER,
+  createHelpers,
+  listPages,
+  postSummaries,
+  renderListPage,
+  renderPostPage,
+} from "./pages.js";
+import type { BlogOptions, ListPage, Post } from "./types.js";
 
 const POSTS_ID = "virtual:blog/posts";
 const CSS_ID = "virtual:blog/code.css";
@@ -20,6 +27,9 @@ const RESOLVED_POSTS_ID = "\0virtual:blog/posts";
 const RESOLVED_CSS_ID = "/__vite-plugin-blog/code.css";
 
 type InputOption = string | string[] | Record<string, string>;
+
+/** A page the blog writes: a post, or the index or a tag page. */
+type BlogPage = { kind: "post"; post: Post } | { kind: "list"; page: ListPage };
 
 function toPosix(file: string): string {
   return file.split(path.sep).join("/");
@@ -43,12 +53,23 @@ export function blog(userOptions: BlogOptions): Plugin {
   let options: ResolvedBlogOptions;
   let load: () => Promise<BlogContent>;
   let content: BlogContent;
-  /** Absolute HTML ids in the build, by post. */
-  const pageIds = new Map<string, Post>();
+  /** Absolute HTML ids in the build, and their pages. */
+  const pageIds = new Map<string, BlogPage>();
 
-  /** Where a post's page sits in the project: `<root>/blog/vpn-leaks/index.html`. */
-  const pageFile = (slug: string) =>
-    path.join(config.root, postPath(options, slug).slice(1), "index.html");
+  /** Where a page sits in the project: `/blog/vpn-leaks/` is `<root>/blog/vpn-leaks/index.html`. */
+  const fileFor = (sitePath: string) => path.join(config.root, sitePath.slice(1), "index.html");
+  const pageFile = (slug: string) => fileFor(postPath(options, slug));
+
+  /** Every page, by its path on the site without Vite's base: `/blog/`, `/blog/tag/dns/`, `/blog/vpn-leaks/`. */
+  const allPages = () => {
+    const pages = new Map<string, BlogPage>();
+    for (const page of listPages(options, content)) {
+      pages.set(page.url.slice(options.siteBase.length - 1), { kind: "list", page });
+    }
+    for (const post of content.posts)
+      pages.set(postPath(options, post.slug), { kind: "post", post });
+    return pages;
+  };
 
   /**
    * A local file's URL in a post. The build resolves it from the page's own
@@ -68,8 +89,12 @@ export function blog(userOptions: BlogOptions): Plugin {
     return template;
   };
 
-  const renderPage = (post: Post) =>
-    renderPostPage(readTemplate(), post, options, createHelpers(options, content));
+  const renderPage = (page: BlogPage) => {
+    const helpers = createHelpers(options, content);
+    return page.kind === "post"
+      ? renderPostPage(readTemplate(), page.post, options, helpers)
+      : renderListPage(readTemplate(), page.page, options, helpers);
+  };
 
   return {
     name: "vite-plugin-blog",
@@ -93,10 +118,13 @@ export function blog(userOptions: BlogOptions): Plugin {
       if (config.command !== "build") return;
       pageIds.clear();
       const pages: Record<string, string> = {};
-      for (const post of content.posts) {
-        const id = pageFile(post.slug);
-        pageIds.set(id, post);
-        pages[`blog-${post.slug}`] = id;
+      for (const [sitePath, page] of allPages()) {
+        const id = fileFor(sitePath);
+        pageIds.set(id, page);
+        // Entry names: `blog` for the index, `blog-{slug}` for posts, `blog-tag__{tag}` for
+        // tags. Slugs can't contain `_`, so a post can never take a tag page's name.
+        const rest = sitePath.slice(options.base.length).replace(/\/$/, "");
+        pages[rest ? `blog-${rest.replace(/^tag\//, "tag__")}` : "blog"] = id;
       }
       return { ...inputOptions, input: addInputs(inputOptions.input, pages) };
     },
@@ -112,8 +140,8 @@ export function blog(userOptions: BlogOptions): Plugin {
       if (id === RESOLVED_POSTS_ID)
         return `export const posts = ${JSON.stringify(postSummaries(content.posts))};\nexport default posts;\n`;
       if (id === RESOLVED_CSS_ID) return content.css;
-      const post = pageIds.get(id);
-      if (post) return renderPage(post);
+      const page = pageIds.get(id);
+      if (page) return renderPage(page);
       return null;
     },
 
@@ -142,19 +170,24 @@ export function blog(userOptions: BlogOptions): Plugin {
       server.middlewares.use(async (req, res, next) => {
         try {
           const url = new URL(req.url ?? "/", "http://localhost");
-          const prefix = `${options.siteBase.replace(/\/$/, "")}${options.base}`;
-          if (!url.pathname.startsWith(prefix)) return next();
-          const match = /^([a-z0-9-]+)(\/|\/index\.html)?$/.exec(url.pathname.slice(prefix.length));
-          const post = match && content.posts.find((candidate) => candidate.slug === match[1]);
-          if (!post) return next();
-          if (!match[2]) {
-            res.statusCode = 301;
-            res.setHeader("Location", `${post.url}${url.search}`);
-            return res.end();
+          const siteBase = options.siteBase.replace(/\/$/, "");
+          if (!url.pathname.startsWith(siteBase)) return next();
+          const sitePath = url.pathname.slice(siteBase.length).replace(/\/index\.html$/, "/");
+          if (!sitePath.startsWith(options.base.replace(/\/$/, ""))) return next();
+          const pages = allPages();
+          const page = pages.get(sitePath);
+          if (!page) {
+            // A page's address without its slash: send it to the real one.
+            if (!sitePath.endsWith("/") && pages.has(`${sitePath}/`)) {
+              res.statusCode = 301;
+              res.setHeader("Location", `${siteBase}${sitePath}/${url.search}`);
+              return res.end();
+            }
+            return next();
           }
           const html = await server.transformIndexHtml(
-            `${postPath(options, post.slug)}index.html`,
-            renderPage(post),
+            `${sitePath}index.html`,
+            renderPage(page),
             req.originalUrl,
           );
           res.setHeader("Content-Type", "text/html; charset=utf-8");

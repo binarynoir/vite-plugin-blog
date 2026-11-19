@@ -15,6 +15,8 @@ scripts, styles and `transformIndexHtml` plugins apply to posts like to every ot
 ## What this does
 
 - **Posts are HTML in the page source.** A post reads with no JavaScript.
+- **An index and tag pages.** `/blog/` lists every post, newest first, and each tag
+  in use gets `/blog/tag/{tag}/`. All of them use your page shell.
 - **Works under a strict Content Security Policy.** Code is highlighted with
   [Shiki](https://shiki.style) at build time, and its colors are written as classes, not
   `style` attributes, so `style-src 'self'` holds.
@@ -122,27 +124,29 @@ theme switch picks one.
 
 ## Options
 
-| Option           | Default       | What it does                                                         |
-| ---------------- | ------------- | -------------------------------------------------------------------- |
-| `dir`            | (required)    | The content folder, relative to Vite's `root` or absolute            |
-| `template`       | (required)    | The page shell, relative to Vite's `root`                            |
-| `base`           | `/blog/`      | Where the blog lives on the site                                     |
-| `site`           |               | The site's origin, for canonical URLs and Open Graph tags            |
-| `preview`        | `false`       | Also build drafts and scheduled posts, with `noindex`                |
-| `now`            | build time    | What "now" is when deciding whether a post is scheduled              |
-| `timeZone`       | `UTC`         | For dates without an offset, and for showing dates                   |
-| `locale`         | `en-US`       | For showing dates                                                    |
-| `wordsPerMinute` | `230`         | For reading time                                                     |
-| `titleSuffix`    | `''`          | Added after the post title in `<title>`                              |
-| `limits`         |               | `{ title: 70, description: 160, minTags: 0, maxTags }`               |
-| `tags`           | `tags.yml`    | The only tags allowed; without either, any tag is                    |
-| `authors`        | `authors.yml` | Known authors, by id                                                 |
-| `directives`     |               | Your own `:::` directives (below)                                    |
-| `highlight`      | GitHub themes | `{ themes: { light, dark }, classPrefix }`, or `false`               |
-| `markdown`       |               | `(md) => void`: add markdown-it plugins                              |
-| `isKnownPath`    |               | `(path) => boolean`: also check links to site pages outside the blog |
-| `validate`       |               | `(post) => string[]`: your own checks; messages fail the build       |
-| `render`         |               | `{ head, article }`: replace the default markup (below)              |
+| Option           | Default             | What it does                                                            |
+| ---------------- | ------------------- | ----------------------------------------------------------------------- |
+| `dir`            | (required)          | The content folder, relative to Vite's `root` or absolute               |
+| `template`       | (required)          | The page shell, relative to Vite's `root`                               |
+| `base`           | `/blog/`            | Where the blog lives on the site                                        |
+| `site`           |                     | The site's origin, for canonical URLs and Open Graph tags               |
+| `preview`        | `false`             | Also build drafts and scheduled posts, with `noindex`                   |
+| `now`            | build time          | What "now" is when deciding whether a post is scheduled                 |
+| `timeZone`       | `UTC`               | For dates without an offset, and for showing dates                      |
+| `locale`         | `en-US`             | For showing dates                                                       |
+| `wordsPerMinute` | `230`               | For reading time                                                        |
+| `titleSuffix`    | `''`                | Added after the post title in `<title>`                                 |
+| `index`          | `{ title: "Blog" }` | The index's heading and description: `{ title, description }`           |
+| `tagPages`       | `true`              | Write a page per tag in use at `{base}tag/{tag}/`                       |
+| `limits`         |                     | `{ title: 70, description: 160, minTags: 0, maxTags }`                  |
+| `tags`           | `tags.yml`          | The only tags allowed; without either, any tag is                       |
+| `authors`        | `authors.yml`       | Known authors, by id                                                    |
+| `directives`     |                     | Your own `:::` directives (below)                                       |
+| `highlight`      | GitHub themes       | `{ themes: { light, dark }, classPrefix }`, or `false`                  |
+| `markdown`       |                     | `(md) => void`: add markdown-it plugins                                 |
+| `isKnownPath`    |                     | `(path) => boolean`: also check links to site pages outside the blog    |
+| `validate`       |                     | `(post) => string[]`: your own checks; messages fail the build          |
+| `render`         |                     | `{ head, article, listHead, list }`: replace the default markup (below) |
 
 ### Directives
 
@@ -177,7 +181,12 @@ Back up the zone file.
 
 `render.article` and `render.head` get the post and a set of helpers: `escapeHtml`,
 `formatDate`, `dateAttribute`, `renderToc`, `renderHead`, `renderArticle`, `tags` and
-`posts` (every published post, newest first, for related posts or series links).
+`posts` (every published post, newest first, for related posts or series links), plus
+`indexUrl`, `tagUrl(tag)` and `usedTags` (tags with a page).
+
+`render.list` and `render.listHead` do the same for the index and tag pages. They get a
+page with `kind` (`"index"` or `"tag"`), `url`, `canonical`, `title`, `description`,
+`tag` and its `posts`, newest first; the defaults are `renderList` and `renderListHead`.
 
 ```ts
 render: {
@@ -189,7 +198,9 @@ render: {
 
 The default article uses these classes: `post`, `post-header`, `post-description`,
 `post-meta`, `post-tags`, `tag`, `toc`, `toc-title`, `toc-2`, `toc-3`, `prose`.
-Inside posts: `heading-anchor`, `code-block`, `callout`, `callout-note`, `callout-tip`,
+The default index and tag pages use `post-list`, `post-list-description`,
+`post-list-tags` (the current tag has `aria-current="page"`), `post-items`, `post-item`
+and `post-list-empty`. Inside posts: `heading-anchor`, `code-block`, `callout`, `callout-note`, `callout-tip`,
 `callout-warning`, `callout-title`.
 
 ### `virtual:blog/posts`

@@ -85,8 +85,33 @@ export interface Directive {
   render(context: DirectiveContext): string;
 }
 
+/** The blog's index (`/blog/`) or one tag's page (`/blog/tag/dns/`). */
+export interface ListPage {
+  kind: "index" | "tag";
+  /** Path on the site, with Vite's `base`: `/blog/tag/dns/`. */
+  url: string;
+  /** Absolute URL, when the `site` option is set. */
+  canonical?: string;
+  title: string;
+  description: string;
+  /** The tag id, on a tag page. */
+  tag?: string;
+  /** The page's posts, newest first. */
+  posts: Post[];
+}
+
 /** Helpers passed to the page renderers. */
 export interface RenderHelpers {
+  /** The blog index's path: `/blog/`. */
+  indexUrl: string;
+  /** A tag page's path: `/blog/tag/dns/`. Tags without published posts have no page. */
+  tagUrl: (tag: string) => string;
+  /** Tags with at least one published post, by id, in `tags.yml` order. */
+  usedTags: string[];
+  /** The default `<head>` tags for the index or a tag page. */
+  renderListHead: (page: ListPage) => string;
+  /** The default markup for the index or a tag page. */
+  renderList: (page: ListPage) => string;
   escapeHtml: (value: string) => string;
   /** A post's date for readers, in the blog's locale and time zone. */
   formatDate: (date: Date, hasTime?: boolean) => string;
@@ -138,6 +163,10 @@ export interface BlogOptions {
   wordsPerMinute?: number;
   /** Added after the post title in `<title>`: `" · Example"`. Default `''`. */
   titleSuffix?: string;
+  /** The blog index's heading and description. Default `{ title: "Blog", description: "" }`. */
+  index?: { title?: string; description?: string };
+  /** Write a page per tag at `{base}tag/{tag}/`. Default `true`. */
+  tagPages?: boolean;
   /** Front matter limits. */
   limits?: {
     /** Longest title, in characters. Default 70. */
@@ -182,5 +211,9 @@ export interface BlogOptions {
     head?: (post: Post, helpers: RenderHelpers) => string;
     /** Markup for `<!--blog:content-->`. */
     article?: (post: Post, helpers: RenderHelpers) => string;
+    /** Head tags for the index and tag pages. */
+    listHead?: (page: ListPage, helpers: RenderHelpers) => string;
+    /** Markup for the index and tag pages. */
+    list?: (page: ListPage, helpers: RenderHelpers) => string;
   };
 }

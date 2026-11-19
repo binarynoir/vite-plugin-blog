@@ -326,15 +326,25 @@ export function createLoader(
 
     // Links between posts, and to site pages when the site says which exist.
     const published = new Set(posts.map((post) => post.slug));
+    const usedTags = new Set(posts.flatMap((post) => post.tags));
     for (const [post, links] of linksByPost) {
       for (const { href, line } of links) {
         const where = line ? `line ${line}: ` : "";
         const pathname = href.split(/[?#]/)[0]!;
         if (pathname.startsWith(options.base)) {
           const rest = pathname.slice(options.base.length).replace(/(?:\/index\.html|\/)$/, "");
-          if (!rest || rest.includes("/")) {
-            if (options.isKnownPath && !options.isKnownPath(pathname))
-              issues.push({ file: post.file, message: `${where}link to ${href} goes nowhere` });
+          if (!rest) continue; // the index
+          const tag = /^tag\/([^/]+)$/.exec(rest)?.[1];
+          if (tag) {
+            if (options.tagPages !== false && usedTags.has(tag)) continue;
+            issues.push({
+              file: post.file,
+              message: `${where}link to ${href} goes nowhere: no published post has the tag "${tag}"`,
+            });
+            continue;
+          }
+          if (rest.includes("/")) {
+            issues.push({ file: post.file, message: `${where}link to ${href} goes nowhere` });
             continue;
           }
           if (published.has(rest)) continue;
