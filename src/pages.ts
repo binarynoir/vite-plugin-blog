@@ -1,8 +1,9 @@
 import type { BlogContent, ResolvedBlogOptions } from "./content.js";
-import { formatPostDate, toDateTimeAttribute } from "./dates.js";
+import { formatPostDate, toDateTimeAttribute, toZonedIsoDate } from "./dates.js";
 import { fillLabel } from "./shared/html.js";
 import {
   breadcrumbTree,
+  browseTree,
   cardListTree,
   cardTree,
   pagerTree,
@@ -11,6 +12,8 @@ import {
 } from "./shared/markup.js";
 import { el, toHtml } from "./shared/tree.js";
 import type {
+  BlogBrowse,
+  BlogBrowseYear,
   BlogClientConfig,
   BlogPostSummary,
   BlogSiteInfo,
@@ -339,6 +342,7 @@ export function createHelpers(
     // Lists show the day alone; the post's own page shows its time.
     dateText: formatDate(post.date),
     dateTime: dateAttribute(post.date),
+    month: toZonedIsoDate(post.date, options.timeZone).slice(0, 7),
     ...(post.updated ? { updated: post.updated.toISOString() } : {}),
     tags: post.tags,
     // Names and links only: an author's email stays out of client code.
@@ -568,6 +572,65 @@ export function createHelpers(
     }${older ? link(older, "older") : ""}</nav>`;
   };
 
+  const monthFormat = new Intl.DateTimeFormat(options.locale, { month: "short", timeZone: "UTC" });
+  const monthNameFormat = new Intl.DateTimeFormat(options.locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  /** Years with posts, newest first, each with all twelve months and their counts. */
+  const dateTree = (posts: BlogPost[]): BlogBrowseYear[] => {
+    const counts = new Map<string, number>();
+    for (const post of posts) {
+      const month = toZonedIsoDate(post.date, options.timeZone).slice(0, 7);
+      counts.set(month, (counts.get(month) ?? 0) + 1);
+    }
+    const years = [...new Set([...counts.keys()].map((month) => month.slice(0, 4)))]
+      .sort()
+      .reverse();
+    return years.map((year) => {
+      const months = Array.from({ length: 12 }, (_, i) => {
+        const value = `${year}-${String(i + 1).padStart(2, "0")}`;
+        const middle = new Date(Date.UTC(Number(year), i, 15));
+        return {
+          value,
+          label: monthFormat.format(middle),
+          name: monthNameFormat.format(middle),
+          count: counts.get(value) ?? 0,
+        };
+      });
+      return { value: year, count: months.reduce((sum, m) => sum + m.count, 0), months };
+    });
+  };
+
+  const feedKind = enabledFeeds(options)[0];
+  const browseFeed = feedKind
+    ? { url: feedPath(feedKind), type: FEED_TYPES[feedKind], name: FEED_NAMES[feedKind] }
+    : undefined;
+
+  /** The browse bar's data for a list page: topic tabs, the date menu (with search) and the feed. */
+  const browseFor = (page: BlogListPage): BlogBrowse => {
+    const scope =
+      page.kind === "tag" && page.tag
+        ? content.listed.filter((post) => post.tags.includes(page.tag!))
+        : content.listed;
+    return {
+      topics: tagsWithPages.size
+        ? [
+            { name: labels.all, url: indexUrl, count: content.listed.length },
+            ...[...tagsWithPages].map((tag) => ({
+              tag,
+              name: tagName(tag),
+              url: tagUrl(tag),
+              count: content.listed.filter((post) => post.tags.includes(tag)).length,
+            })),
+          ]
+        : [],
+      dates: searchUrl ? dateTree(scope) : [],
+      ...(browseFeed ? { feed: browseFeed } : {}),
+    };
+  };
+
   const renderClientConfig = (page?: BlogListPage) => {
     const config: BlogClientConfig = {
       indexUrl,
@@ -575,6 +638,7 @@ export function createHelpers(
       ...(page?.kind === "tag" && page.tag ? { tag: page.tag, tagName: page.title } : {}),
       pageSize: (options.search && options.search.pageSize) || 12,
       labels,
+      ...(page && page.kind !== "announcements" ? { browse: browseFor(page) } : {}),
     };
     return jsonScript("blog-config", config);
   };
@@ -727,6 +791,38 @@ export function createHelpers(
         )}</div>`
       : "";
 
+  const renderBrowse = (page: BlogListPage) => {
+    const browse = browseFor(page);
+    if (!browse.topics.length && !browse.dates.length && !browse.feed) return "";
+    const first = page.pageUrls[0]!;
+    return toHtml(
+      browseTree({
+        browse,
+        labels,
+        current: page.kind === "tag" ? (page.tag ?? "") : page.kind === "index" ? "" : "-",
+        date: "",
+        dateHref: (date) => (date ? `${first}?date=${date}` : first),
+        interactive: false,
+      }),
+    );
+  };
+
+  /** The search form and the browse bar, in the explorer's mount point (or the bar alone without search). */
+  const renderExplorer = (page: BlogListPage) => {
+    if (!searchUrl) return renderBrowse(page);
+    const form = toHtml(
+      searchFormTree({
+        labels,
+        indexUrl,
+        query: "",
+        sort: "newest",
+        tagName: page.kind === "tag" ? page.title : undefined,
+        interactive: false,
+      }),
+    );
+    return `<div class="blog-explorer" data-blog-explorer>${form}${renderBrowse(page)}</div>`;
+  };
+
   const renderPager = (page: BlogListPage) =>
     toHtml(
       pagerTree({
@@ -771,8 +867,7 @@ export function createHelpers(
       `<h1>${escapeHtml(page.title)}</h1>`,
       lead ? `<p class="blog-lead">${escapeHtml(lead)}</p>` : "",
       "</header>",
-      page.kind === "announcements" ? "" : renderSearch(page),
-      page.kind === "announcements" ? "" : renderTopics(page),
+      page.kind === "announcements" ? "" : renderExplorer(page),
       searchUrl && page.kind !== "announcements"
         ? '<div class="blog-results-slot" data-blog-results></div>'
         : "",
@@ -828,6 +923,8 @@ export function createHelpers(
     renderRelated,
     renderTopics,
     renderSearch,
+    renderBrowse,
+    renderExplorer,
     renderFeedList,
     renderClientConfig,
     renderHead,

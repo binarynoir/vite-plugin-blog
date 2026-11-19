@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { htmlToText } from "../src/search-index.js";
-import { cardTree, pagerTree, resultCount, searchFormTree } from "../src/shared/markup.js";
+import {
+  browseTree,
+  cardTree,
+  dateName,
+  pagerTree,
+  resultCount,
+  searchFormTree,
+} from "../src/shared/markup.js";
 import { DEFAULT_LABELS } from "../src/shared/labels.js";
 import {
+  filterByDate,
   isExplorerActive,
   pageWindow,
   paginate,
@@ -12,7 +20,7 @@ import {
   writeExplorerState,
 } from "../src/shared/search.js";
 import { toHtml } from "../src/shared/tree.js";
-import type { BlogSearchPost } from "../src/shared/types.js";
+import type { BlogBrowse, BlogSearchPost } from "../src/shared/types.js";
 
 function post(slug: string, fields: Partial<BlogSearchPost> = {}): BlogSearchPost {
   return {
@@ -23,6 +31,7 @@ function post(slug: string, fields: Partial<BlogSearchPost> = {}): BlogSearchPos
     date: "2026-11-01T00:00:00.000Z",
     dateText: "November 1, 2026",
     dateTime: "2026-11-01",
+    month: "2026-11",
     tags: [],
     authors: [],
     pinned: false,
@@ -104,22 +113,38 @@ describe("sorting and paging", () => {
 
 describe("explorer state", () => {
   it("round-trips through the address, leaving defaults out", () => {
-    expect(writeExplorerState({ q: "", sort: "newest", page: 1 })).toBe("");
-    expect(writeExplorerState({ q: "dns", sort: "relevance", page: 1 })).toBe("?q=dns");
-    const state = readExplorerState("?q=dns&sort=oldest&page=2");
-    expect(state).toEqual({ q: "dns", sort: "oldest", page: 2 });
+    expect(writeExplorerState({ q: "", date: "", sort: "newest", page: 1 })).toBe("");
+    expect(writeExplorerState({ q: "dns", date: "", sort: "relevance", page: 1 })).toBe("?q=dns");
+    const state = readExplorerState("?q=dns&date=2026-11&sort=oldest&page=2");
+    expect(state).toEqual({ q: "dns", date: "2026-11", sort: "oldest", page: 2 });
     expect(readExplorerState(writeExplorerState(state))).toEqual(state);
   });
 
   it("ignores bad values", () => {
-    expect(readExplorerState("?sort=random&page=-3")).toEqual({ q: "", sort: "newest", page: 1 });
-    expect(readExplorerState("?sort=relevance")).toEqual({ q: "", sort: "newest", page: 1 });
+    const plain = { q: "", date: "", sort: "newest", page: 1 };
+    expect(readExplorerState("?sort=random&page=-3")).toEqual(plain);
+    expect(readExplorerState("?sort=relevance")).toEqual(plain);
+    expect(readExplorerState("?date=2026-13")).toEqual(plain);
+    expect(readExplorerState("?date=26")).toEqual(plain);
+    expect(readExplorerState("?date=2026").date).toBe("2026");
   });
 
-  it("is active with a query, another order or a later page", () => {
-    expect(isExplorerActive({ q: "", sort: "newest", page: 1 })).toBe(false);
-    expect(isExplorerActive({ q: "x", sort: "relevance", page: 1 })).toBe(true);
-    expect(isExplorerActive({ q: "", sort: "oldest", page: 1 })).toBe(true);
+  it("is active with a query, a date, another order or a later page", () => {
+    expect(isExplorerActive({ q: "", date: "", sort: "newest", page: 1 })).toBe(false);
+    expect(isExplorerActive({ q: "x", date: "", sort: "relevance", page: 1 })).toBe(true);
+    expect(isExplorerActive({ q: "", date: "2026", sort: "newest", page: 1 })).toBe(true);
+    expect(isExplorerActive({ q: "", date: "", sort: "oldest", page: 1 })).toBe(true);
+  });
+
+  it("filters by year or month", () => {
+    const list = [
+      post("a", { month: "2026-11" }),
+      post("b", { month: "2026-10" }),
+      post("c", { month: "2025-11" }),
+    ];
+    expect(filterByDate(list, "").map((p) => p.slug)).toEqual(["a", "b", "c"]);
+    expect(filterByDate(list, "2026").map((p) => p.slug)).toEqual(["a", "b"]);
+    expect(filterByDate(list, "2026-10").map((p) => p.slug)).toEqual(["b"]);
   });
 });
 
@@ -158,9 +183,81 @@ describe("shared markup", () => {
     expect(html).not.toContain("Best match");
   });
 
-  it("counts results with the query", () => {
+  it("counts results with the query and date", () => {
     expect(resultCount(DEFAULT_LABELS, 1, "")).toBe("1 post");
     expect(resultCount(DEFAULT_LABELS, 3, " dns ")).toBe("3 posts for “dns”");
+    expect(resultCount(DEFAULT_LABELS, 2, "dns", "November 2026")).toBe(
+      "2 posts for “dns” from November 2026",
+    );
+  });
+
+  const months = (year: string, counts: Record<number, number>) =>
+    Array.from({ length: 12 }, (_, i) => ({
+      value: `${year}-${String(i + 1).padStart(2, "0")}`,
+      label: new Date(Date.UTC(2026, i, 15)).toLocaleString("en", {
+        month: "short",
+        timeZone: "UTC",
+      }),
+      name: `${new Date(Date.UTC(2026, i, 15)).toLocaleString("en", { month: "long", timeZone: "UTC" })} ${year}`,
+      count: counts[i + 1] ?? 0,
+    }));
+  const browse: BlogBrowse = {
+    topics: [
+      { name: "All", url: "/blog/", count: 3 },
+      { tag: "dns", name: "DNS", url: "/blog/tag/dns/", count: 2 },
+    ],
+    dates: [{ value: "2026", count: 3, months: months("2026", { 10: 1, 11: 2 }) }],
+    feed: { url: "/blog/feed.xml", type: "application/rss+xml", name: "RSS" },
+  };
+
+  it("names a date filter", () => {
+    expect(dateName(browse, "2026")).toBe("2026");
+    expect(dateName(browse, "2026-11")).toBe("November 2026");
+    expect(dateName(browse, "2019")).toBe("");
+    expect(dateName(browse, "")).toBe("");
+  });
+
+  it("writes the browse bar: tabs with counts, the date menu and the feed icon", () => {
+    const html = toHtml(
+      browseTree({
+        browse,
+        labels: DEFAULT_LABELS,
+        current: "dns",
+        date: "",
+        dateHref: (date) => `/blog/tag/dns/?date=${date}`,
+        interactive: false,
+      }),
+    );
+    expect(html).toContain('<nav class="blog-browse-topics" aria-label="Topics">');
+    expect(html).toContain(
+      '<a class="blog-browse-tab" href="/blog/tag/dns/" aria-current="page" data-blog-control="topic">DNS<span class="blog-browse-count" aria-hidden="true">2</span><span class="blog-visually-hidden"> (2 posts)</span></a>',
+    );
+    expect(html).toContain(
+      '<details class="blog-menu" data-blog-control="date-menu" data-pending>',
+    );
+    expect(html).toContain('aria-label="November 2026 (2 posts)"');
+    // Months without posts show, greyed out, so the grid stays a calendar.
+    expect(html).toContain('<span class="blog-menu-choice is-empty" aria-hidden="true">Jan</span>');
+    expect(html).toContain(
+      '<a class="blog-browse-feed" href="/blog/feed.xml" type="application/rss+xml" title="RSS feed" aria-label="RSS feed">',
+    );
+  });
+
+  it("marks the chosen date on the menu button", () => {
+    const html = toHtml(
+      browseTree({
+        browse: { ...browse, topics: [] },
+        labels: DEFAULT_LABELS,
+        current: "",
+        date: "2026-11",
+        dateHref: (date) => `?date=${date}`,
+        interactive: true,
+      }),
+    );
+    expect(html).not.toContain("blog-browse-topics");
+    expect(html).toContain('<details class="blog-menu is-active" data-blog-control="date-menu">');
+    expect(html).toContain("<span>November 2026</span>");
+    expect(html).toContain('href="?date=2026-11" aria-current="true"');
   });
 });
 

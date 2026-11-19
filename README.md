@@ -24,10 +24,11 @@ scripts, styles and `transformIndexHtml` plugins apply to posts like to every ot
   text or without a file, or a link to a page that doesn't exist (or to a draft).
 - **Lists people can find their way around:** an index at `/blog/` with a featured
   post, a page per topic, pinned posts first, cards, numbered pages at `.../page/2/`,
-  and breadcrumbs back up.
+  and breadcrumbs back up. A browse bar puts the topics on one line as tabs with post
+  counts, with a date menu (years and months) and a feed icon at its end.
 - **Search without a server.** A `search.json` index built with the site, and a search
   field that ranks, sorts and pages results in the browser, keeps them in the address
-  (`?q=dns&sort=oldest`) and loads the index only when someone starts typing. No
+  (`?q=dns&date=2026-11&sort=oldest`) and loads the index only when someone starts typing. No
   WebAssembly and no extra build step, so it works under `script-src 'self'`.
 - **Reach:** share links that load nothing from the networks, feed links on every page,
   related posts, series navigation, and `virtual:blog/latest` for a home page strip.
@@ -210,15 +211,19 @@ The default rules have zero specificity, so yours win.
 
 ### How readers move around
 
-| Page               | Shows                                                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `/blog/`           | Eyebrow, title and lead; search; topics ("All posts" and one link per tag page); the featured post; cards; numbered pages; feed links |
-| `/blog/tag/dns/`   | Breadcrumb `Blog / DNS`; the same, with search kept inside the topic and a "Search all posts" link                                    |
-| `/blog/page/2/`    | Breadcrumb `Blog / Page 2`                                                                                                            |
-| `/blog/vpn-leaks/` | Breadcrumb `Blog / {first tag}`; the article and its contents; your call to action; share links; the series; related posts            |
+| Page               | Shows                                                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/blog/`           | Eyebrow, title and lead; search; the browse bar (topic tabs with counts, date menu, feed icon); the featured post; cards; numbered pages; feed links |
+| `/blog/tag/dns/`   | Breadcrumb `Blog / DNS`; the same, with search kept inside the topic and a "Search all posts" link                                                   |
+| `/blog/page/2/`    | Breadcrumb `Blog / Page 2`                                                                                                                           |
+| `/blog/vpn-leaks/` | Breadcrumb `Blog / {first tag}`; the article and its contents; your call to action; share links; the series; related posts                           |
 
 The topic is in the path, which gives each topic a real page that search engines can
-index. The search is in the query string, so a search can be shared and Back works.
+index. The search and date are in the query string, so they can be shared and Back
+works. Switching topic keeps the search and date. The date menu lists each year with
+posts, newest first, and its twelve months (empty months greyed out); picking one
+filters the list in the browser, from `search.json`, so the menu needs search on and
+shows once the explorer runs. The feed icon links RSS, else Atom, else JSON Feed.
 The breadcrumb's "Blog" always goes to the plain index.
 
 ### Search
@@ -270,13 +275,13 @@ code can render them too.
 Install `vue` (3.4 or later). The components render the same trees, so a card in search
 results or on your home page matches the cards on the blog's own pages.
 
-| Component / function  | Props                                                                  | Use                                                                       |
-| --------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `BlogPostCard`        | `post`, `tags`, `labels`, `headingLevel`, `label`, `featured`, `cover` | One card                                                                  |
-| `BlogPostList`        | `posts`, `tags`, `labels`, `headingLevel`, `limit`, `cover`            | A list of cards, such as a home page strip                                |
-| `BlogPager`           | `page`, `pageCount`, `href`, `labels`; emits `navigate`                | Numbered pages whose links also work without a script                     |
-| `BlogExplorer`        | `config`, `staticSelector`, `resultsSelector`, `shortcut`              | Search, sort and pages for a list page. Press `/` to search, Esc to clear |
-| `mountBlogExplorer()` | `{ selector, config, setup }`                                          | Mounts `BlogExplorer` on `[data-blog-explorer]`, if the page has one      |
+| Component / function  | Props                                                                  | Use                                                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BlogPostCard`        | `post`, `tags`, `labels`, `headingLevel`, `label`, `featured`, `cover` | One card                                                                                                                                                |
+| `BlogPostList`        | `posts`, `tags`, `labels`, `headingLevel`, `limit`, `cover`            | A list of cards, such as a home page strip                                                                                                              |
+| `BlogPager`           | `page`, `pageCount`, `href`, `labels`; emits `navigate`                | Numbered pages whose links also work without a script                                                                                                   |
+| `BlogExplorer`        | `config`, `staticSelector`, `resultsSelector`, `shortcut`, `browse`    | Search, date filter, sort and pages for a list page, with the browse bar from `config.browse`. Press `/` to search, Esc to clear or close the date menu |
+| `mountBlogExplorer()` | `{ selector, config, setup }`                                          | Mounts `BlogExplorer` on `[data-blog-explorer]`, if the page has one, with the browse bar when the build wrote one there                                |
 
 A home page strip:
 
@@ -455,7 +460,8 @@ The helpers:
   `summary(post)`
 - `posts` (every listed post, newest first) and `tags`
 - pieces: `renderBreadcrumbs`, `renderCard`, `renderPager`, `renderShare`,
-  `renderSeries`, `renderRelated`, `renderTopics`, `renderSearch`, `renderFeedList`,
+  `renderSeries`, `renderRelated`, `renderTopics`, `renderSearch`, `renderBrowse`,
+  `renderExplorer` (the search form and the browse bar, as list pages use), `renderFeedList`,
   `renderClientConfig`, `renderToc` and `renderFeedLinks`
 - the defaults: `renderHead`, `renderArticle(post, { beforeBody, end })`,
   `renderListHead` and `renderList(page, { eyebrow, lead, end })`
@@ -464,7 +470,8 @@ List pages get `kind` (`"index"`, `"tag"` or `"announcements"`), `url`, `canonic
 `title`, `description`, `tag`, their `posts`, and `page`, `pageCount`, `pageUrls`,
 `previousUrl` and `nextUrl`.
 
-If you write your own list markup, keep `data-blog-explorer` (the search form),
+If you write your own list markup, keep `data-blog-explorer` (the search form, and the
+browse bar if you want it: `renderExplorer(page)` writes both),
 `data-blog-results` (where results go) and `data-blog-static` (the list that results
 replace) for the explorer, and `renderClientConfig(page)` for its settings.
 
@@ -474,7 +481,10 @@ replace) for the explorer, and `renderClientConfig(page)` for its settings.
 `blog-toc-3`, `blog-prose`, `blog-post-end`, `blog-share`, `blog-share-link`,
 `blog-share-copy`, `blog-series`, `blog-related` and `blog-post-nav`. Lists use
 `blog-list`, `blog-list-head`, `blog-eyebrow`, `blog-explorer`, `blog-search`,
-`blog-sort`, `blog-topics`, `blog-static`, `blog-results`, `blog-cards`, `blog-card`
+`blog-sort`, `blog-topics`, `blog-browse`, `blog-browse-topics`, `blog-browse-tabs`,
+`blog-browse-tab`, `blog-browse-count`, `blog-browse-tools`, `blog-browse-feed`,
+`blog-menu` (`is-active`), `blog-menu-button`, `blog-menu-panel`, `blog-menu-year`,
+`blog-menu-months`, `blog-menu-choice` (`is-empty`), `blog-static`, `blog-results`, `blog-cards`, `blog-card`
 (`is-featured`, `is-pinned`), `blog-card-cover`, `blog-card-body`, `blog-card-label`,
 `blog-card-title`, `blog-card-description`, `blog-pager`, `blog-feeds` and `blog-empty`.
 Inside posts: `heading-anchor`, `code-block`, `code-copy`, `callout`, `callout-note`,

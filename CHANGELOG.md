@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Browse bar** on the index and tag pages: the topics as tabs on one rule, each with its post count, then a date menu and a feed icon at the rule's end. On narrow screens the tabs scroll sideways. It replaces the topic pills on list pages; `renderTopics` still writes them for custom layouts.
+- **Date filter:** the date menu lists each year with posts and its twelve months, with counts. Picking one filters the list in the browser (`?date=2026` or `?date=2026-11`), alongside search, sort and pages, and switching topic keeps it. The result count says "3 posts from November 2026".
+- `renderBrowse(page)` and `renderExplorer(page)` helpers; `browseTree`, `dateName`, `filterByDate` and `normalizeDate` in `/runtime`; a `browse` prop on `BlogExplorer`; `browse` in the client config; `month` on post summaries and in `search.json`.
+- Labels: `all`, `date`, `anyTime`, `feed` and `resultsFrom`.
+
+### Changed
+
+- `BlogExplorerState` has a `date` field.
+
 ## [0.4.0] - 2026-11-19
 
 ### Changed

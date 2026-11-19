@@ -90,12 +90,16 @@ describe("build", () => {
     expect(index.indexOf("/blog/hello/")).toBeLessThan(index.indexOf("/blog/later/"));
     expect(index).not.toContain("/blog/draft-post/");
     expect(index).toContain('<li><a class="blog-tag" href="/blog/tag/dns/">DNS</a></li>');
-    expect(index).toContain('<a class="blog-tag" href="/blog/" aria-current="page">All posts</a>');
+    expect(index).toContain(
+      '<a class="blog-browse-tab" href="/blog/" aria-current="page" data-blog-control="topic">All<span class="blog-browse-count" aria-hidden="true">',
+    );
 
     const dns = read(outDir, "blog/tag/dns/index.html");
     expect(dns).toContain("<title>DNS · Blog · Example</title>");
     expect(dns).toContain('<meta name="description" content="Records and resolvers.">');
-    expect(dns).toContain('<a class="blog-tag" href="/blog/tag/dns/" aria-current="page">DNS</a>');
+    expect(dns).toContain(
+      '<a class="blog-browse-tab" href="/blog/tag/dns/" aria-current="page" data-blog-control="topic">DNS<span',
+    );
     // A breadcrumb back to the index, with the tag as the current page.
     expect(dns).toContain(
       '<nav class="blog-crumbs" aria-label="Breadcrumb"><ol><li><a href="/blog/">Blog</a></li><li><span aria-current="page">DNS</span></li></ol></nav>',

@@ -103,7 +103,14 @@ describe("list pages", () => {
     expect(index).toContain(
       '<div class="blog-explorer" data-blog-explorer><form class="blog-search" role="search"',
     );
-    expect(index).toContain('<nav class="blog-topics" aria-label="Topics">');
+    // Search form, then the browse bar (topic tabs, date menu, feed icon) in the mount point.
+    expect(index).toMatch(
+      /<div class="blog-explorer" data-blog-explorer><form[\s\S]*?<\/form><div class="blog-browse"><nav class="blog-browse-topics" aria-label="Topics">/,
+    );
+    expect(index).toContain(
+      '<details class="blog-menu" data-blog-control="date-menu" data-pending>',
+    );
+    expect(index).toContain('class="blog-browse-feed" href="/blog/feed.xml"');
     expect(index).toContain('<div class="blog-results-slot" data-blog-results></div>');
     expect(index).toContain('<div class="blog-static" data-blog-static>');
     // The newest post is featured on the first page.

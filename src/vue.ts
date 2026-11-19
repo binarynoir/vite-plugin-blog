@@ -22,8 +22,10 @@ import {
   type VNode,
 } from "vue";
 import {
+  browseTree,
   cardListTree,
   cardTree,
+  dateName,
   pagerTree,
   resultCount,
   searchFormTree,
@@ -33,6 +35,7 @@ import { DEFAULT_LABELS } from "./shared/labels.js";
 import { fillLabel } from "./shared/html.js";
 import {
   defaultSort,
+  filterByDate,
   isExplorerActive,
   paginate,
   readExplorerState,
@@ -195,17 +198,20 @@ export const BlogExplorer = defineComponent({
     resultsSelector: { type: String, default: "[data-blog-results]" },
     /** Press `/` anywhere to focus the field. Default `true`. */
     shortcut: { type: Boolean, default: true },
+    /** Show the browse bar (topic tabs, date menu, feed icon) from `config.browse`. Default `true`. */
+    browse: { type: Boolean, default: true },
   },
   setup(props) {
     const labels = computed(() => ({ ...DEFAULT_LABELS, ...props.config.labels }));
     const state = reactive<BlogExplorerState>(
       typeof location === "undefined"
-        ? { q: "", sort: "newest", page: 1 }
+        ? { q: "", date: "", sort: "newest", page: 1 }
         : readExplorerState(location.search),
     );
     const index = ref<BlogSearchIndex | null>(null);
     const status = ref<"idle" | "loading" | "ready" | "error">("idle");
     const input = ref<HTMLInputElement | null>(null);
+    const menu = ref<HTMLDetailsElement | null>(null);
     const target = ref<Element | null>(null);
 
     const load = () => {
@@ -230,15 +236,19 @@ export const BlogExplorer = defineComponent({
         : posts;
     });
     const results = computed(() => {
+      const dated = filterByDate(scope.value, state.date);
       const matched = state.q.trim()
-        ? searchPosts(scope.value, state.q, index.value?.tags).map((result) => result.post)
-        : scope.value;
+        ? searchPosts(dated, state.q, index.value?.tags).map((result) => result.post)
+        : dated;
       return sortPosts(matched, state.sort);
     });
     const paged = computed(() => paginate(results.value, state.page, props.config.pageSize));
 
+    /** The address for a state. Rendered on a server, a relative `?…` link, since there's no `location`. */
     const addressFor = (next: BlogExplorerState) =>
-      `${location.pathname}${writeExplorerState(next)}${location.hash}`;
+      typeof location === "undefined"
+        ? writeExplorerState(next) || "?"
+        : `${location.pathname}${writeExplorerState(next)}${location.hash}`;
     /** Writes the state to the address: a new history entry for pages and order, not for each key typed. */
     const commit = (push: boolean) => {
       const url = addressFor(state);
@@ -254,6 +264,18 @@ export const BlogExplorer = defineComponent({
       load();
       commit(false);
     };
+    const closeMenu = (focus = false) => {
+      if (!menu.value?.open) return;
+      menu.value.open = false;
+      if (focus) menu.value.querySelector("summary")?.focus();
+    };
+    const setDate = (date: string) => {
+      state.date = date;
+      state.page = 1;
+      load();
+      commit(true);
+      closeMenu(true);
+    };
     const goTo = (page: number) => {
       state.page = page;
       commit(true);
@@ -262,7 +284,15 @@ export const BlogExplorer = defineComponent({
     };
 
     const onPopState = () => Object.assign(state, readExplorerState(location.search));
+    const onPointer = (event: Event) => {
+      if (menu.value?.open && !menu.value.contains(event.target as Node)) closeMenu();
+    };
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && menu.value?.open) {
+        event.preventDefault();
+        closeMenu(true);
+        return;
+      }
       if (!props.shortcut || event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey)
         return;
       const typing = (event.target as HTMLElement | null)?.closest?.(
@@ -288,6 +318,7 @@ export const BlogExplorer = defineComponent({
       target.value = document.querySelector(props.resultsSelector);
       window.addEventListener("popstate", onPopState);
       document.addEventListener("keydown", onKey);
+      document.addEventListener("pointerdown", onPointer);
       if (active.value) load();
       const list = document.querySelector<HTMLElement>(props.staticSelector);
       if (list) list.hidden = active.value && status.value !== "error";
@@ -295,6 +326,7 @@ export const BlogExplorer = defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener("popstate", onPopState);
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
     });
 
     const form = () =>
@@ -352,6 +384,46 @@ export const BlogExplorer = defineComponent({
         },
       );
 
+    const plain = (event: MouseEvent) =>
+      !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0);
+    /** Another page of the blog keeps the search, date and order: only the page resets. */
+    const carry = () => writeExplorerState({ ...state, page: 1 });
+
+    const browse = () => {
+      const data = props.config.browse;
+      if (!props.browse || !data) return null;
+      return toVNode(
+        browseTree({
+          browse: data,
+          labels: labels.value,
+          current: props.config.tag ?? "",
+          date: state.date,
+          dateHref: (date) => addressFor({ ...state, date, page: 1 }),
+          interactive: true,
+        }),
+        (element) => {
+          switch (element.attrs?.["data-blog-control"]) {
+            case "topic":
+              return { href: `${String(element.attrs.href)}${carry()}` };
+            case "date-menu":
+              return { ref: menu };
+            case "date": {
+              const date = String(element.attrs["data-date"] ?? "");
+              return {
+                onClick: (event: MouseEvent) => {
+                  if (!plain(event)) return;
+                  event.preventDefault();
+                  setDate(date);
+                },
+              };
+            }
+            default:
+              return undefined;
+          }
+        },
+      );
+    };
+
     const resultsBody = (): (VNode | string | null)[] => {
       if (!active.value) return [];
       const l = labels.value;
@@ -391,14 +463,16 @@ export const BlogExplorer = defineComponent({
     const results$ = () => {
       const l = labels.value;
       const ready = active.value && status.value === "ready";
-      const count = ready ? resultCount(l, results.value.length, state.q) : "";
+      const count = ready
+        ? resultCount(l, results.value.length, state.q, dateName(props.config.browse, state.date))
+        : "";
       const searchAll =
         ready && props.config.tag && state.q.trim()
           ? h(
               "a",
               {
                 class: "blog-results-all",
-                href: `${props.config.indexUrl}${writeExplorerState({ q: state.q, sort: "relevance", page: 1 })}`,
+                href: `${props.config.indexUrl}${writeExplorerState({ q: state.q, date: state.date, sort: "relevance", page: 1 })}`,
               },
               l.searchAll,
             )
@@ -415,6 +489,7 @@ export const BlogExplorer = defineComponent({
     return () =>
       h(Fragment, [
         form(),
+        browse(),
         target.value ? h(Teleport, { to: target.value }, [results$()]) : results$(),
       ]);
   },
@@ -434,7 +509,11 @@ export function mountBlogExplorer(options: MountBlogExplorerOptions = {}): App |
   const element = document.querySelector(options.selector ?? "[data-blog-explorer]");
   const config = options.config ?? readBlogConfig();
   if (!element || !config?.searchUrl) return null;
-  const app = createApp(BlogExplorer, { config });
+  // The browse bar only where the build wrote one, so a custom list page keeps its own layout.
+  const app = createApp(BlogExplorer, {
+    config,
+    browse: Boolean(element.querySelector(".blog-browse")),
+  });
   options.setup?.(app);
   app.mount(element);
   return app;

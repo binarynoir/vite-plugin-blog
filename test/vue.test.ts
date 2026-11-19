@@ -15,6 +15,7 @@ const post: BlogPostSummary = {
   date: "2026-11-01T00:00:00.000Z",
   dateText: "November 1, 2026",
   dateTime: "2026-11-01",
+  month: "2026-11",
   tags: ["dns", "misc"],
   authors: [],
   pinned: true,
@@ -73,5 +74,41 @@ describe("Vue components", () => {
     expect(html).toContain('<label class="blog-sort">');
     expect(html).not.toContain("data-pending");
     expect(html).toContain('<div class="blog-results" hidden>');
+    expect(html).not.toContain("blog-browse");
+  });
+
+  it("render the browse bar from the config, with the date menu ready", async () => {
+    const config: BlogClientConfig = {
+      indexUrl: "/blog/",
+      searchUrl: "/blog/search.json",
+      tag: "dns",
+      tagName: "DNS",
+      pageSize: 12,
+      labels: DEFAULT_LABELS,
+      browse: {
+        topics: [
+          { name: "All", url: "/blog/", count: 2 },
+          { tag: "dns", name: "DNS", url: "/blog/tag/dns/", count: 1 },
+        ],
+        dates: [
+          {
+            value: "2026",
+            count: 1,
+            months: [{ value: "2026-11", label: "Nov", name: "November 2026", count: 1 }],
+          },
+        ],
+        feed: { url: "/blog/feed.xml", type: "application/rss+xml", name: "RSS" },
+      },
+    };
+    const html = await render(BlogExplorer, { config, resultsSelector: "#none" });
+    expect(html).toContain('<div class="blog-browse">');
+    expect(html).toMatch(
+      /<a class="blog-browse-tab" href="\/blog\/tag\/dns\/" aria-current="page"/,
+    );
+    expect(html).toContain('<details class="blog-menu" data-blog-control="date-menu">');
+    expect(html).toContain('aria-label="RSS feed"');
+    // Off, the explorer leaves the bar out, for list pages the build didn't give one.
+    const off = await render(BlogExplorer, { config, browse: false, resultsSelector: "#none" });
+    expect(off).not.toContain("blog-browse");
   });
 });

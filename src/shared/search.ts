@@ -130,9 +130,22 @@ export function pageWindow(page: number, pageCount: number): (number | "gap")[] 
   return out;
 }
 
-/** What the search shows, as kept in the address: `?q=dns&sort=oldest&page=2`. */
+/** Posts from a year (`2026`) or a month (`2026-11`); all of them for `""`. */
+export function filterByDate<T extends { month: string }>(posts: T[], date: string): T[] {
+  return date ? posts.filter((post) => post.month.startsWith(date)) : posts;
+}
+
+/** A date filter value: a year or a month, else `""`. */
+export function normalizeDate(value: string | null | undefined): string {
+  const text = (value ?? "").trim();
+  return /^\d{4}(?:-(?:0[1-9]|1[0-2]))?$/.test(text) ? text : "";
+}
+
+/** What the search shows, as kept in the address: `?q=dns&date=2026-11&sort=oldest&page=2`. */
 export interface BlogExplorerState {
   q: string;
+  /** A year (`2026`), a month (`2026-11`) or `""`. */
+  date: string;
   sort: BlogSort;
   page: number;
 }
@@ -152,13 +165,14 @@ export function readExplorerState(search: string): BlogExplorerState {
   let sort = sortParam && SORTS.includes(sortParam) ? sortParam : defaultSort(q);
   if (sort === "relevance" && !q.trim()) sort = "newest";
   const page = Math.max(1, Math.floor(Number(params.get("page"))) || 1);
-  return { q, sort, page };
+  return { q, date: normalizeDate(params.get("date")), sort, page };
 }
 
 /** The query string for a state, leaving out defaults: `""` for the plain list. */
 export function writeExplorerState(state: BlogExplorerState): string {
   const params = new URLSearchParams();
   if (state.q.trim()) params.set("q", state.q.trim());
+  if (state.date) params.set("date", state.date);
   if (state.sort !== defaultSort(state.q)) params.set("sort", state.sort);
   if (state.page > 1) params.set("page", String(state.page));
   const text = params.toString();
@@ -167,5 +181,5 @@ export function writeExplorerState(state: BlogExplorerState): string {
 
 /** Whether a state needs search results; otherwise the page's own list shows. */
 export function isExplorerActive(state: BlogExplorerState): boolean {
-  return Boolean(state.q.trim()) || state.sort !== "newest" || state.page > 1;
+  return Boolean(state.q.trim() || state.date) || state.sort !== "newest" || state.page > 1;
 }

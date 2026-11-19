@@ -229,6 +229,223 @@
   margin: 0 0 28px;
 }
 
+/*
+ * The browse bar: topic tabs on one rule, the current one underlined in the
+ * accent, with the date menu and the feed icon at the rule's end. On narrow
+ * screens the tabs scroll sideways and the tools stay put.
+ */
+:where(.blog-browse) {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0 28px;
+  border-bottom: 1px solid var(--blog-border);
+}
+:where(.blog-browse-topics) {
+  /* Positioned, so the visually hidden counts stay inside the scroller. */
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:where(.blog-browse-topics)::-webkit-scrollbar {
+  display: none;
+}
+:where(.blog-browse-tabs) {
+  display: flex;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: nowrap;
+}
+:where(.blog-browse-tab) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 12px 0 11px;
+  border-bottom: 2px solid transparent;
+  color: var(--blog-muted);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+:where(.blog-browse-tab:hover) {
+  color: var(--blog-text);
+  border-bottom-color: var(--blog-border);
+}
+:where(.blog-browse-tab[aria-current="page"]) {
+  color: var(--blog-text);
+  border-bottom-color: var(--blog-accent);
+}
+:where(.blog-browse-tab:focus-visible) {
+  outline-offset: -2px;
+}
+:where(.blog-browse-count) {
+  color: var(--blog-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+:where(.blog-browse-tools) {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+
+/* The date menu: a <details> drop-down with "Any time", then each year and its months. */
+:where(.blog-menu) {
+  position: relative;
+}
+:where(.blog-menu[data-pending]) {
+  visibility: hidden;
+}
+:where(.blog-menu-button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--blog-border);
+  border-radius: var(--blog-radius-small);
+  background: var(--blog-surface);
+  color: var(--blog-muted);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  list-style: none;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+:where(.blog-menu-button)::-webkit-details-marker {
+  display: none;
+}
+:where(.blog-menu-button:hover, .blog-menu[open] > .blog-menu-button) {
+  background: var(--blog-muted-bg);
+  color: var(--blog-text);
+}
+:where(.blog-menu.is-active > .blog-menu-button) {
+  border-color: var(--blog-accent);
+  background: var(--blog-accent-tint);
+  color: var(--blog-accent-tint-text);
+}
+:where(.blog-menu-chevron) {
+  transition: transform 0.2s;
+}
+:where(.blog-menu[open] .blog-menu-chevron) {
+  transform: rotate(180deg);
+}
+:where(.blog-menu-panel) {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 256px;
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--blog-border);
+  border-radius: var(--blog-radius-small);
+  background: var(--blog-surface);
+  box-shadow: 0 18px 40px -20px var(--blog-shadow);
+}
+:where(.blog-menu-any, .blog-menu-year-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+}
+:where(.blog-menu-year) {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--blog-border);
+}
+:where(.blog-menu-year-head .blog-browse-count) {
+  padding-right: 10px;
+}
+:where(.blog-menu-any .blog-menu-choice, .blog-menu-year-head .blog-menu-choice) {
+  flex: 1;
+  font-weight: 600;
+}
+:where(.blog-menu-months) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+:where(.blog-menu-choice) {
+  display: block;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--blog-text);
+  font-size: 14px;
+  text-decoration: none;
+}
+:where(.blog-menu-months .blog-menu-choice) {
+  text-align: center;
+}
+:where(.blog-menu-months a.blog-menu-choice) {
+  font-weight: 600;
+}
+:where(a.blog-menu-choice:hover) {
+  background: var(--blog-muted-bg);
+}
+:where(.blog-menu-choice[aria-current="true"]) {
+  background: var(--blog-accent-tint);
+  color: var(--blog-accent-tint-text);
+  font-weight: 600;
+}
+:where(.blog-menu-choice.is-empty) {
+  color: var(--blog-muted);
+  opacity: 0.45;
+}
+
+/* The feed icon at the end of the rule. */
+:where(.blog-browse-feed) {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--blog-radius-small);
+  color: var(--blog-muted);
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+:where(.blog-browse-feed:hover) {
+  background: var(--blog-muted-bg);
+  color: var(--blog-accent);
+}
+
+@media (max-width: 560px) {
+  :where(.blog-browse) {
+    gap: 8px;
+  }
+  :where(.blog-browse-tabs) {
+    gap: 18px;
+    padding-right: 24px;
+  }
+  /* Fade the tabs' end, so a row wider than the phone reads as one that scrolls. */
+  :where(.blog-browse-topics) {
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  /* The panel opens under the bar's end; keep it inside a phone's width. */
+  :where(.blog-menu-panel) {
+    width: min(256px, calc(100vw - 32px));
+  }
+}
+
 :where(.blog-results-bar) {
   display: flex;
   flex-wrap: wrap;

@@ -200,6 +200,16 @@ export interface BlogRenderHelpers {
   renderTopics: (page?: BlogListPage) => string;
   /** The search form the Vue explorer mounts over, or `''` with search off. */
   renderSearch: (page: BlogListPage) => string;
+  /**
+   * The browse bar: topic tabs with post counts, the date menu (with search on)
+   * and the feed icon, or `''` when it has nothing to show.
+   */
+  renderBrowse: (page: BlogListPage) => string;
+  /**
+   * What list pages show above the posts: the search form and the browse bar in
+   * the explorer's mount point, or the browse bar alone with search off.
+   */
+  renderExplorer: (page: BlogListPage) => string;
   /** "Subscribe: RSS · Atom · JSON Feed", or `''` without feeds. */
   renderFeedList: () => string;
   /** The `#blog-config` JSON the client entries read. */

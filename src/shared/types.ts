@@ -41,6 +41,14 @@ export interface BlogLabels {
   topics: string;
   /** The topic filter's first link, back to every post. */
   allPosts: string;
+  /** The first tab in the browse bar, back to every post: "All". */
+  all: string;
+  /** The date menu's button: "Date". */
+  date: string;
+  /** The date menu's first choice, which clears it: "Any time". */
+  anyTime: string;
+  /** The feed icon's accessible name: "{name} feed". */
+  feed: string;
   /** A tag page's description when `tags.yml` gives none: "Posts about {tag}." */
   tagDescription: string;
   /** Card labels. */
@@ -75,6 +83,8 @@ export interface BlogLabels {
   resultsOne: string;
   /** A count with its query: "{results} for “{q}”". */
   resultsFor: string;
+  /** A count with its date: "{results} from {date}". */
+  resultsFrom: string;
   /** "No posts match “{q}”." */
   noResults: string;
   noResultsHint: string;
@@ -107,6 +117,8 @@ export interface BlogPostSummary {
   date: string;
   /** The date for readers: "December 2, 2026". */
   dateText: string;
+  /** The month in the blog's time zone, `2026-12`, for the date filter. */
+  month: string;
   /** A `<time datetime>` value. */
   dateTime: string;
   updated?: string;
@@ -140,6 +152,49 @@ export interface BlogSearchIndex {
   posts: BlogSearchPost[];
 }
 
+/** A tab in the browse bar: a topic, or every post. */
+export interface BlogBrowseTopic {
+  /** The tag id; absent for "All". */
+  tag?: string;
+  name: string;
+  url: string;
+  /** Listed posts. */
+  count: number;
+}
+
+/** A month in the date menu. */
+export interface BlogBrowseMonth {
+  /** `2026-11` */
+  value: string;
+  /** "Nov" */
+  label: string;
+  /** "November 2026" */
+  name: string;
+  /** Posts that month; 0 shows the month greyed out. */
+  count: number;
+}
+
+/** A year in the date menu, with all twelve months. */
+export interface BlogBrowseYear {
+  /** `2026` */
+  value: string;
+  count: number;
+  months: BlogBrowseMonth[];
+}
+
+/**
+ * The browse bar under the search field: topic tabs with counts, then the date
+ * menu and the feed icon. The build writes it into the page and the client config,
+ * so the static page and the Vue explorer render the same markup.
+ */
+export interface BlogBrowse {
+  topics: BlogBrowseTopic[];
+  /** Years with listed posts, newest first. Empty when search is off, since filtering needs `search.json`. */
+  dates: BlogBrowseYear[];
+  /** The feed the icon links to: RSS when it's on, else Atom, else JSON Feed. */
+  feed?: { url: string; type: string; name: string };
+}
+
 /** How a list of posts is ordered. `relevance` only applies with a query. */
 export type BlogSort = "relevance" | "newest" | "oldest";
 
@@ -157,6 +212,8 @@ export interface BlogClientConfig {
   tagName?: string;
   /** Results per page in search. */
   pageSize: number;
+  /** The browse bar, on list pages. */
+  browse?: BlogBrowse;
   labels: BlogLabels;
 }
 

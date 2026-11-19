@@ -2,7 +2,7 @@
 import { fillLabel } from "./html.js";
 import { pageWindow } from "./search.js";
 import { el, type BlogElement, type BlogNode } from "./tree.js";
-import type { BlogLabels, BlogPostSummary, BlogSort, BlogTagInfo } from "./types.js";
+import type { BlogBrowse, BlogLabels, BlogPostSummary, BlogSort, BlogTagInfo } from "./types.js";
 
 /** What a card shows. Both `BlogPostSummary` and `BlogSearchPost` fit. */
 export type BlogCardPost = Pick<
@@ -294,10 +294,208 @@ export function searchFormTree(options: BlogSearchFormOptions): BlogElement {
   );
 }
 
-/** The result count line: "3 posts for “dns”". */
-export function resultCount(labels: BlogLabels, count: number, query: string): string {
-  const results = count === 1 ? labels.resultsOne : fillLabel(labels.results, { n: count });
-  return query.trim() ? fillLabel(labels.resultsFor, { results, q: query.trim() }) : results;
+/** The result count line: "3 posts for “dns”", "2 posts from November 2026". */
+export function resultCount(
+  labels: BlogLabels,
+  count: number,
+  query: string,
+  /** The date filter's name, such as "November 2026". */
+  dateName?: string,
+): string {
+  let results = count === 1 ? labels.resultsOne : fillLabel(labels.results, { n: count });
+  if (query.trim()) results = fillLabel(labels.resultsFor, { results, q: query.trim() });
+  return dateName ? fillLabel(labels.resultsFrom, { results, date: dateName }) : results;
+}
+
+/** The name of a date filter value: "2026" or "November 2026". `""` when it isn't in the menu. */
+export function dateName(browse: BlogBrowse | undefined, date: string): string {
+  if (!date || !browse) return "";
+  const year = browse.dates.find((entry) => date.startsWith(entry.value));
+  if (!year) return "";
+  return date.length === 4 ? year.value : (year.months.find((m) => m.value === date)?.name ?? "");
+}
+
+export interface BlogBrowseOptions {
+  browse: BlogBrowse;
+  labels: BlogLabels;
+  /** The tab for this page: a tag id, or `""` for "All". */
+  current: string;
+  /** The date filter in use. */
+  date: string;
+  /** A date choice's address. */
+  dateHref: (date: string) => string;
+  /**
+   * `false` in the static page: the date menu keeps its space but stays hidden
+   * until a script runs, since it does nothing without one.
+   */
+  interactive: boolean;
+}
+
+const FEED_ICON = el(
+  "svg",
+  {
+    class: "blog-browse-feed-icon",
+    viewBox: "0 0 24 24",
+    width: 18,
+    height: 18,
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "1.9",
+    "stroke-linecap": "round",
+    "aria-hidden": "true",
+    focusable: "false",
+  },
+  el("path", { d: "M5 11a8 8 0 0 1 8 8" }),
+  el("path", { d: "M5 5a14 14 0 0 1 14 14" }),
+  el("circle", { cx: 6, cy: 18, r: 1.6, fill: "currentColor", stroke: "none" }),
+);
+
+const CHEVRON = el(
+  "svg",
+  {
+    class: "blog-menu-chevron",
+    viewBox: "0 0 24 24",
+    width: 14,
+    height: 14,
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    "aria-hidden": "true",
+    focusable: "false",
+  },
+  el("path", { d: "m6 9 6 6 6-6" }),
+);
+
+function countLabel(labels: BlogLabels, n: number): string {
+  return n === 1 ? labels.resultsOne : fillLabel(labels.results, { n });
+}
+
+/**
+ * The browse bar: topic tabs with post counts on one rule, then the date menu
+ * and the feed icon at its end. Tabs carry `data-blog-control="topic"`, the menu
+ * `date-menu` and its choices `date` with `data-date`, so a script can bind them.
+ */
+export function browseTree(options: BlogBrowseOptions): BlogElement {
+  const { browse, labels, current, date, interactive } = options;
+  const tabs = el(
+    "nav",
+    { class: "blog-browse-topics", "aria-label": labels.topics },
+    el(
+      "ul",
+      { class: "blog-browse-tabs" },
+      ...browse.topics.map((topic) =>
+        el(
+          "li",
+          null,
+          el(
+            "a",
+            {
+              class: "blog-browse-tab",
+              href: topic.url,
+              "aria-current": (topic.tag ?? "") === current ? "page" : undefined,
+              "data-blog-control": "topic",
+            },
+            topic.name,
+            el("span", { class: "blog-browse-count", "aria-hidden": "true" }, String(topic.count)),
+            el("span", { class: "blog-visually-hidden" }, ` (${countLabel(labels, topic.count)})`),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  const choice = (value: string, text: string, count: number, label?: string) =>
+    el(
+      "a",
+      {
+        class: "blog-menu-choice",
+        href: options.dateHref(value),
+        "aria-current": value === date ? "true" : undefined,
+        "aria-label": label ? `${label} (${countLabel(labels, count)})` : undefined,
+        "data-blog-control": "date",
+        "data-date": value,
+      },
+      text,
+    );
+  const selected = dateName(browse, date);
+  const menu = browse.dates.length
+    ? el(
+        "details",
+        {
+          class: ["blog-menu", selected && "is-active"].filter(Boolean).join(" "),
+          "data-blog-control": "date-menu",
+          "data-pending": interactive ? undefined : true,
+        },
+        el(
+          "summary",
+          { class: "blog-menu-button" },
+          el("span", { class: "blog-visually-hidden" }, `${labels.date}: `),
+          el("span", null, selected || labels.date),
+          CHEVRON,
+        ),
+        el(
+          "div",
+          { class: "blog-menu-panel" },
+          el("p", { class: "blog-menu-any" }, choice("", labels.anyTime, 0)),
+          ...browse.dates.map((year) =>
+            el(
+              "div",
+              { class: "blog-menu-year" },
+              el(
+                "p",
+                { class: "blog-menu-year-head" },
+                choice(year.value, year.value, year.count, year.value),
+                el(
+                  "span",
+                  { class: "blog-browse-count", "aria-hidden": "true" },
+                  String(year.count),
+                ),
+              ),
+              el(
+                "ul",
+                { class: "blog-menu-months" },
+                ...year.months.map((month) =>
+                  el(
+                    "li",
+                    null,
+                    month.count
+                      ? choice(month.value, month.label, month.count, month.name)
+                      : el(
+                          "span",
+                          { class: "blog-menu-choice is-empty", "aria-hidden": "true" },
+                          month.label,
+                        ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      )
+    : null;
+
+  const feed = browse.feed
+    ? el(
+        "a",
+        {
+          class: "blog-browse-feed",
+          href: browse.feed.url,
+          type: browse.feed.type,
+          title: fillLabel(labels.feed, { name: browse.feed.name }),
+          "aria-label": fillLabel(labels.feed, { name: browse.feed.name }),
+        },
+        FEED_ICON,
+      )
+    : null;
+
+  return el(
+    "div",
+    { class: "blog-browse" },
+    browse.topics.length ? tabs : null,
+    menu || feed ? el("div", { class: "blog-browse-tools" }, menu, feed) : null,
+  );
 }
 
 export type { BlogNode };

@@ -11,8 +11,10 @@ export { DEFAULT_LABELS } from "./shared/labels.js";
 export { escapeHtml, fillLabel } from "./shared/html.js";
 export {
   defaultSort,
+  filterByDate,
   isExplorerActive,
   normalize,
+  normalizeDate,
   pageWindow,
   paginate,
   readExplorerState,
@@ -25,12 +27,15 @@ export {
 } from "./shared/search.js";
 export {
   breadcrumbTree,
+  browseTree,
+  dateName,
   cardListTree,
   cardTree,
   pagerTree,
   resultCount,
   searchFormTree,
   tagListTree,
+  type BlogBrowseOptions,
   type BlogCardOptions,
   type BlogCardPost,
   type BlogCrumb,
