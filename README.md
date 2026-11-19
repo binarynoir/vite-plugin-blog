@@ -503,3 +503,25 @@ publishes to npm with Trusted Publishing.
 ## License
 
 [MIT](LICENSE)
+
+<!-- binarynoir:more:start (generated from binarynoir.github.io/products.json) -->
+
+## More from BinaryNoir
+
+<p align="center">
+  <a href="https://binarynoir.tech">
+    <img alt="BinaryNoir" src="https://binarynoir.tech/logo-horizontal.png" width="320">
+  </a>
+</p>
+
+Blog for Vite is one of a family of open-source tools from BinaryNoir.
+
+**Pairs well with Blog for Vite**
+
+- [Blog](https://binarynoir.tech/plugins/blog/): posts anywhere, a main blog and section blogs, with RSS feeds
+- [Optimize Images](https://binarynoir.tech/plugins/optimize-images): smaller images in the build output
+- [Image Fallback](https://binarynoir.tech/plugins/image-fallback): a placeholder instead of a failed build
+
+**See them all:** VitePress plugins, Vite plugins, editor extensions and command-line tools, with documentation and live demos, at **[binarynoir.tech](https://binarynoir.tech)**.
+
+<!-- binarynoir:more:end -->
