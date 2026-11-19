@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-19
+
 - An index page at the blog's `base` and a page per tag at `{base}tag/{tag}/`, both from the same page shell, with their own head tags. Turn tag pages off with `tagPages: false`, and set the index's heading and description with `index`.
 - `render.list` and `render.listHead` replace the index and tag page markup; helpers gain `indexUrl`, `tagUrl`, `usedTags`, `renderList` and `renderListHead`.
 - Tags in the default post markup link to their tag pages.
