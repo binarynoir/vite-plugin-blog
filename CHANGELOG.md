@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-19
+
 ### Added
 
 - **Browse bar** on the index and tag pages: the topics as tabs on one rule, each with its post count, then a date menu and a feed icon at the rule's end. On narrow screens the tabs scroll sideways. It replaces the topic pills on list pages; `renderTopics` still writes them for custom layouts.
