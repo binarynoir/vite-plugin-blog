@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-19
+
 ### Changed
 
 - **Breaking:** the plugin is now the named export `blogPlugin`, as in the other BinaryNoir Vite plugins; the `blog` and default exports are gone. Types carry a `Blog` prefix: `BlogPost`, `BlogTag`, `BlogAuthor`, `BlogDirective`, `BlogListPage`, `BlogRenderHelpers` and so on.
