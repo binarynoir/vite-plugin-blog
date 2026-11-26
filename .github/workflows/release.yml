@@ -11,6 +11,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Only v* tags can deploy to this environment (repo Settings → Environments).
+    environment: release
     steps:
       - uses: actions/checkout@v7
 
