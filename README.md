@@ -10,7 +10,7 @@ scripts, styles and `transformIndexHtml` plugins apply to posts like to every ot
 
 [![Support me on Buy Me a Coffee](https://img.shields.io/badge/Support%20me-Buy%20Me%20a%20Coffee-orange?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/binarynoir)
 [![Support me on Ko-fi](https://img.shields.io/badge/Support%20me-Ko--fi-blue?style=for-the-badge&logo=ko-fi)](https://ko-fi.com/binarynoir)
-[![More tools](https://img.shields.io/badge/Website-binarynoir.tech-8c8c8c?style=for-the-badge)](https://binarynoir.tech)
+[![More tools](https://img.shields.io/badge/Website-binarynoir.com-8c8c8c?style=for-the-badge)](https://binarynoir.com)
 
 ## What this does
 
@@ -545,8 +545,8 @@ publishes to npm with Trusted Publishing.
 ## More from BinaryNoir
 
 <p align="center">
-  <a href="https://binarynoir.tech">
-    <img alt="BinaryNoir" src="https://binarynoir.tech/logo-horizontal.png" width="320">
+  <a href="https://binarynoir.com">
+    <img alt="BinaryNoir" src="https://binarynoir.com/logo-horizontal.png" width="320">
   </a>
 </p>
 
@@ -554,10 +554,10 @@ Blog for Vite is one of a family of open-source tools from BinaryNoir.
 
 **Pairs well with Blog for Vite**
 
-- [Blog](https://binarynoir.tech/plugins/blog/): posts anywhere, a main blog and section blogs, with RSS feeds
-- [Optimize Images](https://binarynoir.tech/plugins/optimize-images): smaller images in the build output
-- [Image Fallback](https://binarynoir.tech/plugins/image-fallback): a placeholder instead of a failed build
+- [Blog](https://binarynoir.com/plugins/blog/): posts anywhere, a main blog and section blogs, with RSS feeds
+- [Optimize Images](https://binarynoir.com/plugins/optimize-images): smaller images in the build output
+- [Image Fallback](https://binarynoir.com/plugins/image-fallback): a placeholder instead of a failed build
 
-**See them all:** VitePress plugins, Vite plugins, editor extensions and command-line tools, with documentation and live demos, at **[binarynoir.tech](https://binarynoir.tech)**.
+**See them all:** VitePress plugins, Vite plugins, editor extensions and command-line tools, with documentation and live demos, at **[binarynoir.com](https://binarynoir.com)**.
 
 <!-- binarynoir:more:end -->

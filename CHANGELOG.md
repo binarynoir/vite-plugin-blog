@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- README: point website, documentation and logo links to binarynoir.com, the new BinaryNoir domain
+
 ## [0.6.0] - 2026-11-19
 
 ### Added
